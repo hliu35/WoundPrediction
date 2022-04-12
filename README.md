@@ -1,2 +1,2 @@
-# WoundPrediction
-2022 CSE247
+# Wound Prediction
+Capstone Project
