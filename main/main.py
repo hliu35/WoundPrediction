@@ -1,6 +1,7 @@
 from cProfile import run
 import os
 import sys
+import shutil
 import argparse
 
 sys.path.insert(0, '../model')
@@ -29,7 +30,7 @@ from dataloader import WoundImageDataset
 
 parser = argparse.ArgumentParser()
 parser.add_argument("--n_epochs", type=int, default=20, help="number of epochs of training")
-parser.add_argument("--batch_size", type=int, default=2, help="size of the batches")
+parser.add_argument("--batch_size", type=int, default=4, help="size of the batches")
 parser.add_argument("--lr", type=float, default=0.0002, help="adam: learning rate")
 parser.add_argument("--b1", type=float, default=0.5, help="adam: decay of first order momentum of gradient")
 parser.add_argument("--b2", type=float, default=0.999, help="adam: decay of first order momentum of gradient")
@@ -51,8 +52,14 @@ def list_full_paths(directory):
     return sorted(full_list)
 
 
-def run_gan(datapath="../data/"):
+def run_gan(datapath="../data/", outpath="../tmp/"):
 
+    # create output folder
+    if os.path.exists(outpath):
+        shutil.rmtree(outpath)
+    os.mkdir(outpath)
+
+    # retrieve the list of image paths
     img_list = list_full_paths(datapath)
     print(img_list[:10])
 
@@ -68,8 +75,9 @@ def run_gan(datapath="../data/"):
         discriminator.cuda()
         adversarial_loss.cuda()
 
-    # Configure data loader
-    dataset = WoundImageDataset(img_list, T.Resize((opt.img_size, opt.img_size))) # can also customize transform
+    # Configure data loader and compose transform functions
+    TRANSFORMS = T.Compose([T.ToTensor(), T.Resize((opt.img_size, opt.img_size))])
+    dataset = WoundImageDataset(img_list, transform = TRANSFORMS) # can also customize transform
 
     dataloader = DataLoader(dataset, batch_size=opt.batch_size, shuffle=True)
 
@@ -135,7 +143,7 @@ def run_gan(datapath="../data/"):
 
             batches_done = epoch * len(dataloader) + i
             if batches_done % opt.sample_interval == 0:
-                save_image(gen_imgs.data[:25], "images/%d.png" % batches_done, nrow=5, normalize=True)
+                save_image(gen_imgs.data[:25], os.path.join(outpath, "%d.png" % batches_done), nrow=5, normalize=True)
 
 
 

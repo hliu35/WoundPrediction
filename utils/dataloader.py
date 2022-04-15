@@ -1,5 +1,7 @@
 import os
 
+from PIL import Image
+
 import torch
 from torch.utils.data import Dataset
 from torchvision import datasets
@@ -21,11 +23,13 @@ class WoundImageDataset(Dataset):
 
     def __getitem__(self, idx):
         img_path = self.img_list[idx]
-        image = read_image(img_path)
-        image = image[:3, :]
+        #image = read_image(img_path) # using pytorch read image yields error in transform ToTensor()
+        image = Image.open(img_path)
         #label = self.img_labels.iloc[idx, 1]
         if self.transform:
             image = self.transform(image)
         #if self.target_transform:
         #    label = self.target_transform(label)
+        image = image[:3, :]
+        
         return image
