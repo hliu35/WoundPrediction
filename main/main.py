@@ -48,7 +48,7 @@ cuda = True if torch.cuda.is_available() else False
 
 
 def list_full_paths(directory):
-    full_list = [os.path.join(directory, file) for file in os.listdir(directory)]
+    full_list = [os.path.join(directory, file) for file in os.listdir(directory) if "label" not in file]
     return sorted(full_list)
 
 
@@ -92,7 +92,7 @@ def run_gan(datapath="../data/", outpath="../tmp/"):
     # ----------
 
     for epoch in range(opt.n_epochs):
-        for i, imgs in enumerate(dataloader):
+        for i, (imgs, labels) in enumerate(dataloader):
 
             # SKIP BATCH SIZE OF 1
             if imgs.shape[0] <= 1: continue
