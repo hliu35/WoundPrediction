@@ -25,20 +25,23 @@ import torch
 
 import gan, dcgan
 from dataloader import WoundImageDataset
+from synth_labels import synthesize_softmax_labels as synth_softmax
+from synth_labels import synthesize_onehot_labels as synth_onehot
 
 
 
 parser = argparse.ArgumentParser()
-parser.add_argument("--n_epochs", type=int, default=20, help="number of epochs of training")
-parser.add_argument("--batch_size", type=int, default=4, help="size of the batches")
-parser.add_argument("--lr", type=float, default=0.0002, help="adam: learning rate")
+parser.add_argument("--n_epochs", type=int, default=50, help="number of epochs of training")
+parser.add_argument("--batch_size", type=int, default=8, help="size of the batches") # changed from 16 to 8
+parser.add_argument("--lr", type=float, default=0.0005, help="adam: learning rate") # changed from 0.0002
 parser.add_argument("--b1", type=float, default=0.5, help="adam: decay of first order momentum of gradient")
 parser.add_argument("--b2", type=float, default=0.999, help="adam: decay of first order momentum of gradient")
 parser.add_argument("--n_cpu", type=int, default=8, help="number of cpu threads to use during batch generation")
-parser.add_argument("--latent_dim", type=int, default=100, help="dimensionality of the latent space")
-parser.add_argument("--img_size", type=int, default=64, help="size of each image dimension")
+parser.add_argument("--latent_dim", type=int, default=16, help="dimensionality of the latent space") # original: 100
+parser.add_argument("--img_size", type=int, default=128, help="size of each image dimension")  # changed from 64 to 128
+parser.add_argument('--n_classes', type=int, default=4, help='number of classes for dataset')
 parser.add_argument("--channels", type=int, default=3, help="number of image channels")
-parser.add_argument("--sample_interval", type=int, default=400, help="interval betwen image samples")
+parser.add_argument("--sample_interval", type=int, default=50, help="interval betwen image samples")
 opt = parser.parse_args()
 
 
@@ -48,7 +51,7 @@ CUDA = True if torch.cuda.is_available() else False
 
 
 def list_full_paths(directory):
-    full_list = [os.path.join(directory, file) for file in os.listdir(directory) if "label" not in file]
+    full_list = [os.path.join(directory, file) for file in os.listdir(directory) if "png" in file]
     return sorted(full_list)
 
 
@@ -95,7 +98,7 @@ def run_gan(datapath="../data/", outpath="../tmp/"):
         for i, (imgs, labels) in enumerate(dataloader):
 
             # SKIP BATCH SIZE OF 1
-            if imgs.shape[0] <= 1: continue
+            if imgs.shape[0] < opt.batch_size: continue
 
             # Adversarial ground truths
             valid = Variable(Tensor(imgs.size(0), 1).fill_(1.0), requires_grad=False)
@@ -148,15 +151,10 @@ def run_gan(datapath="../data/", outpath="../tmp/"):
 
 
 
-def run_dcgan(datapath="../data/", outpath="../tmp/"):
+def run_cgan(datapath="../data/", outpath="../tmp/"):
 
-    INPUT_SIZE = img_shape
-    SAMPLE_SIZE = 80
-    NUM_LABELS = 4
-    BATCH_SIZE = 8
-    N_EPOCHS = 10
-    NZ = opt.latent_dim
-    LR = 0.01
+    img_shape = (opt.channels, opt.img_size, opt.img_size)
+    n_classes = opt.n_classes
 
     # create output folder
     if os.path.exists(outpath):
@@ -165,148 +163,124 @@ def run_dcgan(datapath="../data/", outpath="../tmp/"):
 
     # retrieve the list of image paths
     img_list = list_full_paths(datapath)
+    #print(img_list[:10])
 
+        
+    # Loss function
+    adversarial_loss = torch.nn.BCELoss()
 
-    TRANSFORMS = T.Compose([T.ToTensor(), T.Resize((opt.img_size, opt.img_size))])
-    train_dataset = WoundImageDataset(img_list, transform = TRANSFORMS) # can also customize transform
-    train_loader = DataLoader(train_dataset, shuffle=True,
-        batch_size=BATCH_SIZE)
+    # Initialize Generator and discriminator
+    generator = dcgan.Generator(img_shape, opt.latent_dim, opt.n_classes)
+    discriminator = dcgan.Discriminator(img_shape, opt.n_classes)
 
-    model_d = dcgan.Discriminator()
-    model_g = dcgan.Generator(NZ)
-    criterion = nn.BCELoss()
-
-    input = torch.FloatTensor(BATCH_SIZE, *INPUT_SIZE)
-    noise = torch.FloatTensor(BATCH_SIZE, (NZ))
-    
-    fixed_noise = torch.FloatTensor(SAMPLE_SIZE, NZ).normal_(0,1)
-    fixed_labels = torch.zeros(SAMPLE_SIZE, NUM_LABELS)
-
-    for i in range(NUM_LABELS):
-        for j in range(SAMPLE_SIZE // NUM_LABELS):
-            fixed_labels[i*(SAMPLE_SIZE // NUM_LABELS) + j, i] = 1.0
-    
-    label = torch.FloatTensor(BATCH_SIZE)
-    one_hot_labels = torch.FloatTensor(BATCH_SIZE, NUM_LABELS)
+    # Initialize weights
+    #generator.apply(weights_init_normal)
+    #discriminator.apply(weights_init_normal)
 
     if CUDA:
-        print("hello world")
-        model_d.cuda()
-        model_g.cuda()
-        input, label = input.cuda(), label.cuda()
-        noise, fixed_noise = noise.cuda(), fixed_noise.cuda()
-        one_hot_labels = one_hot_labels.cuda()
-        fixed_labels = fixed_labels.cuda()
+        generator.cuda()
+        discriminator.cuda()
+        adversarial_loss.cuda()
 
-    optim_d = torch.optim.SGD(model_d.parameters(), lr=LR)
-    optim_g = torch.optim.SGD(model_g.parameters(), lr=LR)
-    fixed_noise = Variable(fixed_noise)
-    fixed_labels = Variable(fixed_labels)
+    # Configure data loader and compose transform functions
+    TRANSFORMS = T.Compose([T.ToTensor(), T.Resize((opt.img_size, opt.img_size))])
+    dataset = WoundImageDataset(img_list, transform = TRANSFORMS) # can also customize transform
 
-    real_label = 1
-    fake_label = 0
+    dataloader = DataLoader(dataset, batch_size=opt.batch_size, shuffle=True)
 
-    for epoch_idx in range(N_EPOCHS):
+    # Optimizers
+    #optimizer_G = torch.optim.Adam(generator.parameters(), lr=opt.lr, betas=(opt.b1, opt.b2))
+    #optimizer_D = torch.optim.Adam(discriminator.parameters(), lr=opt.lr, betas=(opt.b1, opt.b2))
+    optimizer_G = torch.optim.RMSprop(generator.parameters(), lr=opt.lr)            ########## optimizer changed from default
+    optimizer_D = torch.optim.RMSprop(discriminator.parameters(), lr=opt.lr)
 
-        model_d.train()
-        model_g.train()
 
-        d_loss = 0.0
-        g_loss = 0.0
+    Tensor = torch.cuda.FloatTensor if CUDA else torch.FloatTensor
 
-        # train_x is the images, train_y is the labels
-        for batch_idx, (train_x, train_y) in enumerate(train_loader):
-            batch_size = train_x.size(0)
-            #train_x = train_x.view(-1, INPUT_SIZE)
 
-            if CUDA:
-                train_x = train_x.cuda()
-                train_y = train_y.cuda()
+    batches_done=0
+    for epoch in range(opt.n_epochs):
+        for i, (imgs, labels) in enumerate(dataloader):
 
-            input.resize_as_(train_x).copy_(train_x)
-            label.resize_(batch_size).fill_(real_label)
-            label = label.unsqueeze(1) # fix deprecation error
+            batch_size = opt.batch_size
 
-            #one_hot_labels.resize_(batch_size, NUM_LABELS).zero_()
-            #print(one_hot_labels.shape, train_y.shape)
-            #exit()
-            #one_hot_labels.scatter_(1, train_y.view(batch_size, 1), 1)
-            one_hot_labels = train_y
+            # SKIP BATCH SIZE OF 1
+            if imgs.shape[0] < batch_size: continue
+
+            # Adversarial ground truths
+            valid = Variable(torch.ones(batch_size).cuda(), requires_grad=False)
+            fake = Variable(torch.zeros(batch_size).cuda(), requires_grad=False)
+
+            # Configure input
+            real_imgs = Variable(imgs.type(torch.FloatTensor).cuda())
+
+            #real_y = torch.zeros(batch_size, n_classes)
+            #real_y = Variable(real_y.scatter_(1, labels.view(batch_size, n_classes), 1).cuda())
+            real_y = labels.cuda()
+            #y = Variable(y.cuda())
+
+            # Sample noise and labels as generator input
+            noise = Variable(torch.randn((batch_size, opt.latent_dim)).cuda())
+            #gen_labels = (torch.rand(batch_size, 1) * n_classes).type(torch.LongTensor)
+            #gen_y = torch.zeros(batch_size, n_classes)
+            #gen_y = Variable(gen_y.scatter_(1, gen_labels.view(batch_size, 1), 1).cuda())
             
-            inputv = Variable(input)
-            labelv = Variable(label)
-
-            output = model_d(inputv, Variable(one_hot_labels))
-            optim_d.zero_grad()
-            errD_real = criterion(output, labelv)
-            errD_real.backward()
-            realD_mean = output.data.cpu().mean()
-            
-            one_hot_labels.zero_()
-            rand_y = torch.from_numpy(
-                np.random.randint(0, NUM_LABELS, size=(batch_size,1))).cuda()
-            one_hot_labels.scatter_(1, rand_y.view(batch_size,1), 1)
-            noise.resize_(batch_size, NZ).normal_(0,1)
-            label.resize_(batch_size).fill_(fake_label)
-            label = label.unsqueeze(1) # fix deprecation error
-            
-            noisev = Variable(noise)
-            labelv = Variable(label)
-            onehotv = Variable(one_hot_labels)
-            g_out = model_g(noisev, onehotv)
-            output = model_d(g_out, onehotv)
-
-            errD_fake = criterion(output, labelv)
-            fakeD_mean = output.data.cpu().mean()
-            errD = errD_real + errD_fake
-            errD_fake.backward()
-            optim_d.step()
-
-            # train the G
-            noise.normal_(0,1)
-            one_hot_labels.zero_()
-            rand_y = torch.from_numpy(
-                np.random.randint(0, NUM_LABELS, size=(batch_size,1))).cuda()
-            one_hot_labels.scatter_(1, rand_y.view(batch_size,1), 1)
-            label.resize_(batch_size).fill_(real_label)
-            label = label.unsqueeze(1) # fix deprecation error
-
-            onehotv = Variable(one_hot_labels)
-            noisev = Variable(noise)
-            labelv = Variable(label)
-            g_out = model_g(noisev, onehotv)
-            output = model_d(g_out, onehotv)
-            errG = criterion(output, labelv)
-            optim_g.zero_grad()
-            errG.backward()
-            optim_g.step()
-            
-            d_loss += errD.item()
-            g_loss += errG.item()
-            if batch_idx % 10 == 0:
-                print(
-                "\t{} ({} / {}) mean D(fake) = {:.4f}, mean D(real) = {:.4f}".
-                    format(epoch_idx, batch_idx, len(train_loader), fakeD_mean,
-                        realD_mean))
-
-                g_out = model_g(fixed_noise, fixed_labels).data.view(
-                    SAMPLE_SIZE, 1, 28,28).cpu()
-                save_image(g_out,
-                    '{}/{}_{}.png'.format(
-                        outpath, epoch_idx, batch_idx))
+            gen_y = synth_softmax(n_classes=opt.n_classes, batch_size=batch_size).to("cuda")
+            #gen_y = synth_onehot(n_classes=opt.n_classes, batch_size=batch_size, fixed=False).to("cuda")
 
 
-        print('Epoch {} - D loss = {:.4f}, G loss = {:.4f}'.format(epoch_idx,
-            d_loss, g_loss))
-        if epoch_idx % 2 == 0:
-            torch.save({'state_dict': model_d.state_dict()},
-                        '{}/model_d_epoch_{}.pth'.format(
-                            outpath, epoch_idx))
-            torch.save({'state_dict': model_g.state_dict()},
-                        '{}/model_g_epoch_{}.pth'.format(
-                            outpath, epoch_idx))
+            # ---------------------
+            #  Train Discriminator
+            # ---------------------
+            optimizer_D.zero_grad()
+            # Loss for real images
+            d_real_loss = adversarial_loss(discriminator(real_imgs, real_y).squeeze(), valid)
+            # Loss for fake images
+            gen_imgs = generator(noise, gen_y)
+            d_fake_loss = adversarial_loss(discriminator(gen_imgs.detach(),gen_y).squeeze(), fake)
+            # Total discriminator loss
+            d_loss = (d_real_loss + d_fake_loss)
+
+            d_loss.backward()
+            optimizer_D.step()
+
+            # -----------------
+            #  Train Generator
+            # -----------------
+
+            optimizer_G.zero_grad()
+
+            # Generate a batch of images
+            #gen_imgs = generator(noise, gen_y)
+            # Loss measures generator's ability to fool the discriminator
+            g_loss = adversarial_loss(discriminator(gen_imgs,gen_y).squeeze(), valid)
+
+            g_loss.backward()
+            optimizer_G.step()
+
+
+            print ("[Epoch %d/%d] [Batch %d/%d] [D loss: %f] [G loss: %f]" % (epoch, opt.n_epochs, i, len(dataloader),
+                                                                d_loss.data.cpu(), g_loss.data.cpu()))
+
+            batches_done = epoch * len(dataloader) + i
+            if batches_done % opt.sample_interval == 0:
+                #noise = Variable(torch.FloatTensor(np.random.normal(0, 1, (batch_size, opt.latent_dim))).cuda())
+                noise = Variable(torch.randn((batch_size, opt.latent_dim)).cuda())
+                #fixed labels
+                #y_ = torch.LongTensor(np.array([num for num in range(n_classes)])).view(n_classes,1).expand(-1,n_classes).contiguous()
+                #y_fixed = torch.zeros(n_classes**2, n_classes)
+                #y_fixed = Variable(y_fixed.scatter_(1,y_.view(n_classes**2,1),1).cuda())
+                y_fixed = synth_onehot(n_classes=opt.n_classes, batch_size=batch_size, fixed=True).to("cuda")
+
+                gen_imgs = generator(noise, y_fixed).view(-1, *img_shape)
+                save_image(gen_imgs.data, os.path.join(outpath, '%d-%d.png' % (epoch,batches_done)), nrow=n_classes, normalize=True)
+
+
+
 
 
 if __name__ == "__main__":
+    print(opt)
+    assert(opt.batch_size > 1)
     #run_gan()
-    run_dcgan()
+    run_cgan()
