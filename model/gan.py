@@ -100,8 +100,8 @@ if __name__ == "__main__":
     adversarial_loss = torch.nn.BCELoss()
 
     # Initialize generator and discriminator
-    generator = Generator()
-    discriminator = Discriminator()
+    generator = Generator(img_shape=(opt.channels, opt.img_size, opt.img_size), latent_dim=opt.latent_dim)
+    discriminator = Discriminator(img_shape=(opt.channels, opt.img_size, opt.img_size))
 
     if cuda:
         generator.cuda()
