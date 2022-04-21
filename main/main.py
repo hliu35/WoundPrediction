@@ -217,6 +217,7 @@ def run_cgan(datapath="../data/", outpath="../tmp/"):
             #real_y = torch.zeros(batch_size, n_classes)
             #real_y = Variable(real_y.scatter_(1, labels.view(batch_size, n_classes), 1).cuda())
             real_y = labels.cuda()
+
             #y = Variable(y.cuda())
 
             # Sample noise and labels as generator input
@@ -266,14 +267,18 @@ def run_cgan(datapath="../data/", outpath="../tmp/"):
             if batches_done % opt.sample_interval == 0:
                 #noise = Variable(torch.FloatTensor(np.random.normal(0, 1, (batch_size, opt.latent_dim))).cuda())
                 noise = Variable(torch.randn((batch_size, opt.latent_dim)).cuda())
-                #fixed labels
+
+                # fixed labels
                 #y_ = torch.LongTensor(np.array([num for num in range(n_classes)])).view(n_classes,1).expand(-1,n_classes).contiguous()
                 #y_fixed = torch.zeros(n_classes**2, n_classes)
                 #y_fixed = Variable(y_fixed.scatter_(1,y_.view(n_classes**2,1),1).cuda())
                 y_fixed = synth_onehot(n_classes=opt.n_classes, batch_size=batch_size, fixed=True).to("cuda")
 
                 gen_imgs = generator(noise, y_fixed).view(-1, *img_shape)
-                save_image(gen_imgs.data, os.path.join(outpath, '%d-%d.png' % (epoch,batches_done)), nrow=n_classes, normalize=True)
+                save_image(gen_imgs.data, os.path.join(outpath, '%d-%d.png' % (epoch,batches_done)), nrow=n_classes, normalize=True) # nrow = number of img per row
+
+                torch.save(generator, os.path.join(outpath, "cgan_gen.pth"))
+
 
 
 
@@ -283,4 +288,16 @@ if __name__ == "__main__":
     print(opt)
     assert(opt.batch_size > 1)
     #run_gan()
-    run_cgan()
+    try:
+        run_cgan()
+    except KeyboardInterrupt:
+
+        generator = torch.load("../tmp/cgan_gen.pth")
+
+        noise = Variable(torch.randn((opt.batch_size, opt.latent_dim)).cuda())
+        stage = 2
+        y_fixed = torch.ones((opt.batch_size, opt.n_classes)).to("cuda")
+        y_fixed[:, stage] = 1
+
+        gen_imgs = generator(noise, y_fixed).view(-1, *img_shape)
+        save_image(gen_imgs.data, os.path.join("../tmp/", 'test_stage_%d.png' % (stage)), nrow=opt.batch_size, normalize=True) # nrow = number of img per row
