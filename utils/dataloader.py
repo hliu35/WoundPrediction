@@ -37,6 +37,6 @@ class WoundImageDataset(Dataset):
         #if self.target_transform:
         #    label = self.target_transform(label)
         image = image[:3, :]
-        label = torch.as_tensor(label_row.iloc[0, 1:]).T
+        label = torch.FloatTensor(label_row.iloc[0, 1:]).T
 
         return image, label
