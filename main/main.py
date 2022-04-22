@@ -37,8 +37,8 @@ parser.add_argument("--lr", type=float, default=0.0005, help="adam: learning rat
 parser.add_argument("--b1", type=float, default=0.5, help="adam: decay of first order momentum of gradient")
 parser.add_argument("--b2", type=float, default=0.999, help="adam: decay of first order momentum of gradient")
 parser.add_argument("--n_cpu", type=int, default=8, help="number of cpu threads to use during batch generation")
-parser.add_argument("--latent_dim", type=int, default=100, help="dimensionality of the latent space") # original: 100, new: 16
-parser.add_argument("--img_size", type=int, default=64, help="size of each image dimension")  # changed from 64 to 128
+parser.add_argument("--latent_dim", type=int, default=16, help="dimensionality of the latent space") # original: 100, new: 16
+parser.add_argument("--img_size", type=int, default=128, help="size of each image dimension")  # changed from 64 to 128
 parser.add_argument('--n_classes', type=int, default=4, help='number of classes for dataset')
 parser.add_argument("--channels", type=int, default=3, help="number of image channels")
 parser.add_argument("--sample_interval", type=int, default=50, help="interval betwen image samples")
@@ -167,8 +167,8 @@ def run_cgan(datapath="../data/", outpath="../tmp/"):
 
         
     # Loss function
-    #adversarial_loss = torch.nn.BCELoss()  ######## TEST with MSE
-    adversarial_loss = torch.nn.MSELoss()
+    adversarial_loss = torch.nn.BCELoss()  ######## TEST with MSE
+    #adversarial_loss = torch.nn.MSELoss()
 
 
     # Initialize Generator and discriminator
@@ -191,10 +191,10 @@ def run_cgan(datapath="../data/", outpath="../tmp/"):
     dataloader = DataLoader(dataset, batch_size=opt.batch_size, shuffle=True)
 
     # Optimizers
-    optimizer_G = torch.optim.Adam(generator.parameters(), lr=opt.lr, betas=(opt.b1, opt.b2))
-    optimizer_D = torch.optim.Adam(discriminator.parameters(), lr=opt.lr, betas=(opt.b1, opt.b2))
-    #optimizer_G = torch.optim.RMSprop(generator.parameters(), lr=opt.lr)            ########## optimizer changed from default
-    #optimizer_D = torch.optim.RMSprop(discriminator.parameters(), lr=opt.lr)
+    #optimizer_G = torch.optim.Adam(generator.parameters(), lr=opt.lr, betas=(opt.b1, opt.b2))
+    #optimizer_D = torch.optim.Adam(discriminator.parameters(), lr=opt.lr, betas=(opt.b1, opt.b2))
+    optimizer_G = torch.optim.RMSprop(generator.parameters(), lr=opt.lr)            ########## optimizer changed from default
+    optimizer_D = torch.optim.RMSprop(discriminator.parameters(), lr=opt.lr)
 
 
     Tensor = torch.cuda.FloatTensor if CUDA else torch.FloatTensor
