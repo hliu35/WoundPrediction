@@ -4,23 +4,28 @@ import torch
 
 def synthesize_softmax_labels(n_classes, batch_size, count=1000):
     batch = np.zeros((batch_size, n_classes))
+    mu_low = 0
+    mu_high = n_classes-1
     std_low = 0.1
-    std_high = 1.0
+    std_high = 0.5
 
     for i in range(batch_size):
-        mu = np.random.randint(low=-0.49, high=n_classes+0.49)
+        #mu = np.random.randint(low=-0.48, high=n_classes+0.49)
+        mu = np.random.uniform(mu_low, mu_high)
         sigma = np.random.uniform(std_low, std_high)
         
         rand_samples = np.random.normal(loc=mu, scale=sigma, size=count)
-        rand_samples = np.round(rand_samples)
+        bins = [x-0.5 for x in range(n_classes+1)]
+        rand_ints = np.digitize(rand_samples, bins=bins) - 1
 
         for j in range(n_classes):
-            batch[i, j] = np.count_nonzero(rand_samples == j)
+            batch[i, j] = np.count_nonzero(rand_ints == j)
         
         batch[i, :] /= np.sum(batch[i, :])
         if 1.0 in batch[i, :]: np.random.shuffle(batch[i, :])
-        
-    return torch.FloatTensor(batch)
+    
+    res = torch.FloatTensor(batch)
+    return res
 
 
 def synthesize_onehot_labels(n_classes, batch_size, fixed=True):
