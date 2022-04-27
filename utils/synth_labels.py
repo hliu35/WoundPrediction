@@ -7,7 +7,7 @@ def synthesize_softmax_labels(n_classes, batch_size, count=1000):
     mu_low = 0
     mu_high = n_classes-1
     std_low = 0.1
-    std_high = 0.75
+    std_high = 0.2
 
     for i in range(batch_size):
         #mu = np.random.randint(low=-0.48, high=n_classes+0.49)
