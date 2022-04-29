@@ -1,4 +1,3 @@
-from cProfile import label
 import os, sys
 import shutil
 
@@ -6,6 +5,11 @@ import numpy as np
 import pandas as pd
 from PIL import Image, ImageOps, ImageEnhance
 
+# Thresholding parameters
+THRESHOLD_1 = 0.75
+THRESHOLD_2 = 0.4
+
+# Augmentation parameters
 augmenting_probabilities = [0.8, 0.75, 0, 0.4]
 
 
@@ -42,7 +46,7 @@ def thresholding(label, thresh_1, thresh_2):
     return not modified, label
 
 
-def thresholding_main(DF, thresh_1=0.75, thresh_2=0.4):
+def thresholding_main(DF, thresh_1=THRESHOLD_1, thresh_2=THRESHOLD_2):
     """  
     How-to:
     Set two thresholds: first one would set 1 to everything above that
