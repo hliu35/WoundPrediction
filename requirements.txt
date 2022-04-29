@@ -3,6 +3,8 @@ matplotlib
 scipy
 pandas
 
+pillow
+
 torch
 torchvision
 
