@@ -37,7 +37,7 @@ parser.add_argument("--lr", type=float, default=0.0005, help="adam: learning rat
 parser.add_argument("--b1", type=float, default=0.5, help="adam: decay of first order momentum of gradient")
 parser.add_argument("--b2", type=float, default=0.999, help="adam: decay of first order momentum of gradient")
 parser.add_argument("--n_cpu", type=int, default=8, help="number of cpu threads to use during batch generation")
-parser.add_argument("--latent_dim", type=int, default=16, help="dimensionality of the latent space") # original: 100, new: 16
+parser.add_argument("--latent_dim", type=int, default=100, help="dimensionality of the latent space") # original: 100, new: 16
 parser.add_argument("--img_size", type=int, default=128, help="size of each image dimension")  # changed from 64 to 128
 parser.add_argument('--n_classes', type=int, default=4, help='number of classes for dataset')
 parser.add_argument("--channels", type=int, default=3, help="number of image channels")
@@ -55,7 +55,7 @@ def list_full_paths(directory):
     return sorted(full_list)
 
 
-def run_gan(datapath="../data/", outpath="../tmp/"):
+def run_gan(datapath, annotation_file, outpath="../tmp/"):
 
     # create output folder
     if os.path.exists(outpath):
@@ -80,7 +80,9 @@ def run_gan(datapath="../data/", outpath="../tmp/"):
 
     # Configure data loader and compose transform functions
     TRANSFORMS = T.Compose([T.ToTensor(), T.Resize((opt.img_size, opt.img_size))])
-    dataset = WoundImageDataset(img_list, transform = TRANSFORMS) # can also customize transform
+    dataset = WoundImageDataset(img_list, \
+        annotation_file, \
+        transform = TRANSFORMS) # can also customize transform
 
     dataloader = DataLoader(dataset, batch_size=opt.batch_size, shuffle=True)
 
@@ -151,7 +153,7 @@ def run_gan(datapath="../data/", outpath="../tmp/"):
 
 
 
-def run_cgan(datapath="../data/", outpath="../tmp/"):
+def run_cgan(datapath, annotation_file, outpath="../tmp/"):
 
     img_shape = (opt.channels, opt.img_size, opt.img_size)
     n_classes = opt.n_classes
@@ -186,15 +188,17 @@ def run_cgan(datapath="../data/", outpath="../tmp/"):
 
     # Configure data loader and compose transform functions
     TRANSFORMS = T.Compose([T.ToTensor(), T.Resize((opt.img_size, opt.img_size))])
-    dataset = WoundImageDataset(img_list, transform = TRANSFORMS) # can also customize transform
+    dataset = WoundImageDataset(img_list, \
+        annotation_file,\
+        transform = TRANSFORMS) # can also customize transform
 
     dataloader = DataLoader(dataset, batch_size=opt.batch_size, shuffle=True)
 
     # Optimizers
-    #optimizer_G = torch.optim.Adam(generator.parameters(), lr=opt.lr, betas=(opt.b1, opt.b2))
-    #optimizer_D = torch.optim.Adam(discriminator.parameters(), lr=opt.lr, betas=(opt.b1, opt.b2))
-    optimizer_G = torch.optim.RMSprop(generator.parameters(), lr=opt.lr)            ########## optimizer changed from default
-    optimizer_D = torch.optim.RMSprop(discriminator.parameters(), lr=opt.lr)
+    optimizer_G = torch.optim.Adam(generator.parameters(), lr=opt.lr, betas=(opt.b1, opt.b2))
+    optimizer_D = torch.optim.Adam(discriminator.parameters(), lr=opt.lr, betas=(opt.b1, opt.b2))
+    #optimizer_G = torch.optim.RMSprop(generator.parameters(), lr=opt.lr)            ########## optimizer changed from default
+    #optimizer_D = torch.optim.RMSprop(discriminator.parameters(), lr=opt.lr)
 
 
     Tensor = torch.cuda.FloatTensor if CUDA else torch.FloatTensor
@@ -292,9 +296,17 @@ def run_cgan(datapath="../data/", outpath="../tmp/"):
 if __name__ == "__main__":
     print(opt)
     assert(opt.batch_size > 1)
-    #run_gan()
-    run_cgan()
+    
+    # configure data and annotation path
+    datapath = "../data_augmented/"
+    annotation_file = "../data_augmented/augmented_labels.csv"
 
+    # train/test the models
+    run_gan(datapath, annotation_file)
+    #run_cgan(datapath, annotation_file)
+
+    # custom test scripts
+    
     # generator = torch.load("../tmp/cgan_gen.pth")
 
     # noise = Variable(torch.randn((opt.batch_size, opt.latent_dim)).cuda())
