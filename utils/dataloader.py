@@ -12,13 +12,13 @@ from torchvision.transforms import ToTensor, Resize
 
 from torchvision.io import read_image
 
-import augment as AUG
+#import augment as AUG
 
-THRESHOLD_1 = 0.75
-THRESHOLD_2 = 0.4
+#THRESHOLD_1 = 0.75
+#THRESHOLD_2 = 0.4
 
 class WoundImageDataset(Dataset):
-    def __init__(self, img_list, annotations_file="../data/labels.csv", transform=None, target_transform=None):
+    def __init__(self, img_list, annotations_file, transform=None, target_transform=None):
         self.img_labels = pd.read_csv(annotations_file)
         self.img_list = img_list
         self.transform = transform
@@ -43,7 +43,7 @@ class WoundImageDataset(Dataset):
         image = image[:3, :]
         label = label_row.iloc[0, 1:]
 
-        label = AUG.thresholding(label,thresh_1=THRESHOLD_1, thresh_2=THRESHOLD_2)    
+        #_, label = AUG.thresholding(label,thresh_1=THRESHOLD_1, thresh_2=THRESHOLD_2)    
         label = torch.FloatTensor(label).T
         
 
