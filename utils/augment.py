@@ -8,9 +8,10 @@ from PIL import Image, ImageOps, ImageEnhance
 # Thresholding parameters
 THRESHOLD_1 = 0.75
 THRESHOLD_2 = 0.4
+STD_MAX = 0.3
 
 # Augmentation parameters
-augmenting_probabilities = [0.8, 0.75, 0, 0.4]
+augmenting_probabilities = [0.1, 0.1, 0.0, 0.9]
 
 
 def augment(image):
@@ -43,7 +44,14 @@ def thresholding(label, thresh_1, thresh_2):
         new_label = np.where(label >= thresh_2, 0.5, 0)
         return modified, new_label
     
-    return not modified, label
+    elif np.std(label) < STD_MAX and np.max(label) >= 0.5: # general case
+        new_label = np.zeros(label.shape)
+        new_label[np.argmax(label)] = 1.0
+        return modified, new_label
+    
+    else:
+        print(np.std(label))
+        return not modified, label
 
 
 def thresholding_main(DF, thresh_1=THRESHOLD_1, thresh_2=THRESHOLD_2):
@@ -54,16 +62,17 @@ def thresholding_main(DF, thresh_1=THRESHOLD_1, thresh_2=THRESHOLD_2):
     You will see how many labels are left uncertained.
     """
     uncertained = 0
+    print()
 
     for i, row in DF.iterrows():
         label = row.iloc[1:]
         modified, new_label = thresholding(label, thresh_1, thresh_2)
         DF.iloc[i, 1:] = new_label
-        if not modified:
-            #print(label)
+        if not modified: # if the label is uncertained
+            print(row)
             uncertained += 1
     
-    print("\ntotal data:", i)
+    print("\ntotal data:", i+1)
     print("uncertained data:", uncertained)
 
     return DF
@@ -74,7 +83,7 @@ def label_stats(dataframe, description):
     print(np.sum(dataframe.iloc[:, 1:], axis=0))
 
 
-def augment_main(dataframe, datapath = "../data/", outpath="../data_augmented/", probability=0.8):
+def augment_main(dataframe, datapath = "../data/", outpath="../data_augmented/", Pconfirm = 0.8):
     '''
     please feed in a dataframe after thresholding
     '''
@@ -101,9 +110,9 @@ def augment_main(dataframe, datapath = "../data/", outpath="../data_augmented/",
         stage = np.argmax(label)
 
         # calculate augmenting probability
-        probability = augmenting_probabilities[stage]
+        Paug = augmenting_probabilities[stage]
 
-        if probability > 0 and np.random.random() <= probability:
+        if Paug > 0 and np.random.random() <= (Paug * Pconfirm):
             # read old image
             image = Image.open(filepath)
             new_image = augment(image)
@@ -121,7 +130,7 @@ def augment_main(dataframe, datapath = "../data/", outpath="../data_augmented/",
         # copy original image regardless of augmenting or not
         shutil.copyfile(src=filepath, dst=os.path.join(outpath, filename))     
         
-    print("total image:", i+count+1)
+    print("\ntotal image after augmentation:", i+count+1)
     dataframe.to_csv(outfile, index=False)
     return dataframe
 
@@ -136,10 +145,12 @@ if __name__ == "__main__":
     label_stats(DF, "original")
 
     # after thresholding
-    new_DF = thresholding_main(DF, 0.5)
+    #new_DF = thresholding_main(DF, thresh_1=0.54, thresh_2=0.3) # defaults to global THRESHOLD_1 and THRESHOLD_2
+    new_DF = thresholding_main(DF,)
     label_stats(new_DF, "after thresholding")
 
     # after augmenting
     file = "../data_augmented/augmented_labels.csv"
-    aug_DF = augment_main(new_DF)
+    #aug_DF = augment_main(new_DF, datapath="../data/", Pconfirm=1.0) # can use ../data/ or ../data_cropped/
+    aug_DF = augment_main(new_DF, datapath="../data_cropped/", Pconfirm=1.0)
     label_stats(aug_DF, "after augmentation")
