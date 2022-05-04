@@ -33,23 +33,29 @@ class Generator(nn.Module):
         self.n_classes = n_classes
 
         self.fc1_1 = nn.Linear(self.latent_dim, 256)
-        self.fc1_1_bn = nn.BatchNorm1d(256)
-        self.fc1_2 = nn.Linear(self.n_classes, 256)
-        self.fc1_2_bn = nn.BatchNorm1d(256)
+        self.fc1_1_bn = nn.BatchNorm1d(256, 0.8) # test w/o batchnorm
+        self.fc1_2 = nn.Linear(self.n_classes, 256) 
+        self.fc1_2_bn = nn.BatchNorm1d(256, 0.8) # test w/o batchnorm
         self.fc2 = nn.Linear(512, 512)
-        self.fc2_bn = nn.BatchNorm1d(512)
+        self.fc2_bn = nn.BatchNorm1d(512, 0.8)
         self.fc3 = nn.Linear(512, 1024)
-        self.fc3_bn = nn.BatchNorm1d(1024)
+        self.fc3_bn = nn.BatchNorm1d(1024, 0.8)
+
         self.fc4 = nn.Linear(1024, int(np.prod(self.img_shape)))
 
 
     # forward method
     def forward(self, z, label):
-        x = F.relu(self.fc1_1_bn(self.fc1_1(z)))
-        y = F.relu(self.fc1_2_bn(self.fc1_2(label)))
+        #x = F.relu(self.fc1_1_bn(self.fc1_1(z))) # w/ batchnorm
+        #y = F.relu(self.fc1_2_bn(self.fc1_2(label))) # w/ batchnorm
+        #x = F.relu(self.fc1_1(z)) # test: w/o batchnorm
+        #y = F.relu(self.fc1_2(label)) # test: w/o batchnorm
+        x = F.leaky_relu(self.fc1_1(z), 0.2) # test: w/o batchnorm, leaky
+        y = F.leaky_relu(self.fc1_2(label), 0.2) # test: w/o batchnorm, leaky
         x = torch.cat([x, y], 1)
-        x = F.relu(self.fc2_bn(self.fc2(x)))
-        x = F.relu(self.fc3_bn(self.fc3(x)))
+
+        x = F.leaky_relu(self.fc2_bn(self.fc2(x)), 0.2)
+        x = F.leaky_relu(self.fc3_bn(self.fc3(x)), 0.2)
         x = F.tanh(self.fc4(x))
         return x
 
@@ -61,9 +67,9 @@ class Discriminator(nn.Module):
         self.img_shape = img_shape
         self.n_classes = n_classes
 
-        self.fc1_1 = nn.Linear(int(np.prod(self.img_shape)), 1024)
-        self.fc1_2 = nn.Linear(self.n_classes, 1024)
-        self.fc2 = nn.Linear(2048, 512)
+        self.fc1_1 = nn.Linear(int(np.prod(self.img_shape)), 512) # original 1024, new 512
+        self.fc1_2 = nn.Linear(self.n_classes, 512)
+        self.fc2 = nn.Linear(1024, 512) # original 1024+1024, new 512+512
         self.fc2_bn = nn.BatchNorm1d(512)
         self.fc3 = nn.Linear(512, 256)
         self.fc3_bn = nn.BatchNorm1d(256)
@@ -75,10 +81,12 @@ class Discriminator(nn.Module):
         x = F.leaky_relu(self.fc1_1(input.view(input.size(0),-1)), 0.2)
         y = F.leaky_relu(self.fc1_2(label), 0.2)
         x = torch.cat([x, y], 1)
-        x = F.leaky_relu(self.fc2_bn(self.fc2(x)), 0.2)
-        x = F.leaky_relu(self.fc3_bn(self.fc3(x)), 0.2)
-        x = F.sigmoid(self.fc4(x))
-        return x
+        #x = F.leaky_relu(self.fc2_bn(self.fc2(x)), 0.2) # with batchnorm
+        #x = F.leaky_relu(self.fc3_bn(self.fc3(x)), 0.2) # with batchnorm
+        x = F.leaky_relu(self.fc2(x), 0.2) # test w/o batchnorm
+        x = F.leaky_relu(self.fc3(x), 0.2) # test w/o batchnorm
+        validity = F.sigmoid(self.fc4(x))
+        return validity
 
 
 
