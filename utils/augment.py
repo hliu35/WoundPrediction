@@ -11,7 +11,13 @@ THRESHOLD_2 = 0.4
 STD_MAX = 0.3
 
 # Augmentation parameters
-augmenting_probabilities = [0.1, 0.1, 0.0, 0.9]
+augmenting_probabilities = [0.6, 0.4, 0.0, 0.7]
+
+
+def from_string(embedding_str):
+    embedding_arr = np.fromstring(embedding_str[1:-1], dtype=np.float, sep="  ")
+    return embedding_arr
+
 
 
 def augment(image):
@@ -78,21 +84,30 @@ def thresholding_main(DF, thresh_1=THRESHOLD_1, thresh_2=THRESHOLD_2):
     return DF
 
 
-def label_stats(dataframe, description):
+def label_stats(df, description):
     print('\n%s'%description)
-    print(np.sum(dataframe.iloc[:, 1:], axis=0))
+    if df.shape[1] > 3:
+        print(np.sum(df.iloc[:, 1:5], axis=0))
+    else:
+        print(np.sum(df.iloc[:, 1], axis=0))
 
 
-def augment_main(dataframe, datapath = "../data/", outpath="../data_augmented/", Pconfirm = 0.8):
+def augment_main(df_labels, df_embeddings, datapath = "../data/", outpath="../data_augmented/", Pconfirm = 0.8):
     '''
-    please feed in a dataframe after thresholding
+    please feed in a df_labels after thresholding
     '''
     # create output folder
     if os.path.exists(outpath):
         shutil.rmtree(outpath)
     os.mkdir(outpath)
 
-    outfile = os.path.join(outpath, "augmented_labels.csv")
+    # define output file directory
+    outfile = os.path.join(outpath, "augmented_data.csv")
+
+    # rows in out df
+    new_images = []
+    new_labels = []
+    new_embeddings = []
 
     #DF = pd.read_csv("../data/labels.csv")
     #new_DF = thresholding_main(DF, 0.5)
@@ -100,7 +115,7 @@ def augment_main(dataframe, datapath = "../data/", outpath="../data_augmented/",
 
     i, count = 0, 0
 
-    for i, row in dataframe.iterrows():
+    for i, row in df_labels.iterrows():
         # image file
         filename = row.iloc[0]
         filepath = os.path.join(datapath, filename)
@@ -109,48 +124,78 @@ def augment_main(dataframe, datapath = "../data/", outpath="../data_augmented/",
         label = row.iloc[1:]
         stage = np.argmax(label)
 
-        # calculate augmenting probability
+        # embeddings
+        emb_row = df_embeddings.loc[df_embeddings['Mouse ID'] == filename]
+        embedding = emb_row["Embedding"]
+
+
+        # calculate augmenting probability P_aug
         Paug = augmenting_probabilities[stage]
 
-        if Paug > 0 and np.random.random() <= (Paug * Pconfirm):
+        if Paug > 0 and np.random.random() <= (Paug * Pconfirm): # if criteria is satisfied
             # read old image
             image = Image.open(filepath)
             new_image = augment(image)
 
-            # save image
+            # save new image
             new_filename = "aug_"+filename
             new_image.save(os.path.join(outpath, new_filename))
 
-            # save label by appending to old df
-            new_row = row.copy()
-            new_row["Image"] = new_filename
-            dataframe = dataframe.append(new_row)
+            # save label by appending to out_df
+            new_images.append(new_filename)
+            new_labels.append(label)
+            new_embeddings.append(embedding)
+
+            # increment counter
             count += 1
+        
+        # save old variables to lists
+        new_images.append(filename)
+        new_labels.append(label)
+        new_embeddings.append(embedding)
 
         # copy original image regardless of augmenting or not
         shutil.copyfile(src=filepath, dst=os.path.join(outpath, filename))     
-        
+    
+
     print("\ntotal image after augmentation:", i+count+1)
-    dataframe.to_csv(outfile, index=False)
-    return dataframe
+
+    # put new columns into the out_df
+    data = {"Images":new_images, "Label":new_labels, "Embedding":new_embeddings}
+    out_df = pd.DataFrame(data)
+
+    out_df.to_csv(outfile, index=False)
+    return out_df
 
     
 
 
 
 if __name__ == "__main__":
-    # original
-    file = "../data/labels.csv"
-    DF = pd.read_csv(file)
-    label_stats(DF, "original")
+    # original source files
+    label_file = "../data/labels.csv"
+    embedding_file = "../data/embeddings.csv"
+    
+    # load DFs
+    DF_labels = pd.read_csv(label_file) # load labels
+    DF_embeddings = pd.read_csv(embedding_file) # load embeddings
+    DF_embeddings["Embedding"] = DF_embeddings["Embedding"].apply(lambda x: from_string(x)) # change str to np.array
+
+    
+    # print some stats
+    label_stats(DF_labels, "original")
+
 
     # after thresholding
-    #new_DF = thresholding_main(DF, thresh_1=0.54, thresh_2=0.3) # defaults to global THRESHOLD_1 and THRESHOLD_2
-    new_DF = thresholding_main(DF,)
-    label_stats(new_DF, "after thresholding")
+    #new_DF = thresholding_main(DF_labels, thresh_1=0.54, thresh_2=0.3) # defaults to global THRESHOLD_1 and THRESHOLD_2
+    DF_labels_new = thresholding_main(DF_labels,)
+    label_stats(DF_labels_new, "after thresholding")
+
 
     # after augmenting
-    file = "../data_augmented/augmented_labels.csv"
+    # label_file = "../data_augmented/augmented_labels.csv"
     #aug_DF = augment_main(new_DF, datapath="../data/", Pconfirm=1.0) # can use ../data/ or ../data_cropped/
-    aug_DF = augment_main(new_DF, datapath="../data_cropped/", Pconfirm=1.0)
+    aug_DF = augment_main(DF_labels_new, DF_embeddings, datapath="../data_cropped/", Pconfirm=1.0)
     label_stats(aug_DF, "after augmentation")
+
+    print(type(aug_DF.iloc[0, 1]))
