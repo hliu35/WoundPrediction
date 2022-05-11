@@ -37,10 +37,11 @@ class Generator(nn.Module):
 
         self.model = nn.Sequential(
             *block(self.latent_dim, 128, normalize=False),
-            *block(128, 256),
-            *block(256, 512),
-            *block(512, 1024),
-            nn.Linear(1024, int(np.prod(self.img_shape))),
+            *block(128, 256, True), # test false
+            *block(256, 512, True), # test false
+            *block(512, 1024, True), # test norm false
+            #*block(1024, 2048), # test 
+            nn.Linear(1024, int(np.prod(self.img_shape))), # was 1024 now 2048
             nn.Tanh()
         )
 
@@ -60,8 +61,12 @@ class Discriminator(nn.Module):
             nn.Linear(int(np.prod(self.img_shape)), 512),
             nn.LeakyReLU(0.2, inplace=True),
             nn.Linear(512, 256),
-            nn.LeakyReLU(0.2, inplace=True),
-            nn.Linear(256, 1),
+            nn.LeakyReLU(0.2, inplace=True), # test
+            # additional
+            #nn.Linear(256, 128), # test
+            #nn.LeakyReLU(0.2, inplace=True),
+            # done additional
+            nn.Linear(256, 1), # test (old 256, new 128)
             nn.Sigmoid(),
         )
 
