@@ -15,7 +15,7 @@ augmenting_probabilities = [0.6, 0.4, 0.0, 0.7]
 
 
 def from_string(embedding_str):
-    embedding_arr = np.fromstring(embedding_str[1:-1], dtype=np.float, sep="  ")
+    embedding_arr = np.fromstring(embedding_str[1:-1], dtype=np.float, sep=",")
     return embedding_arr
 
 
@@ -126,8 +126,7 @@ def augment_main(df_labels, df_embeddings, datapath = "../data/", outpath="../da
 
         # embeddings
         emb_row = df_embeddings.loc[df_embeddings['Mouse ID'] == filename]
-        embedding = emb_row["Embedding"]
-
+        embedding = emb_row["Embedding"].to_numpy()[0]
 
         # calculate augmenting probability P_aug
         Paug = augmenting_probabilities[stage]
@@ -143,7 +142,7 @@ def augment_main(df_labels, df_embeddings, datapath = "../data/", outpath="../da
 
             # save label by appending to out_df
             new_images.append(new_filename)
-            new_labels.append(label)
+            new_labels.append(label.to_numpy())
             new_embeddings.append(embedding)
 
             # increment counter
@@ -151,7 +150,7 @@ def augment_main(df_labels, df_embeddings, datapath = "../data/", outpath="../da
         
         # save old variables to lists
         new_images.append(filename)
-        new_labels.append(label)
+        new_labels.append(label.to_numpy())
         new_embeddings.append(embedding)
 
         # copy original image regardless of augmenting or not
@@ -161,7 +160,7 @@ def augment_main(df_labels, df_embeddings, datapath = "../data/", outpath="../da
     print("\ntotal image after augmentation:", i+count+1)
 
     # put new columns into the out_df
-    data = {"Images":new_images, "Label":new_labels, "Embedding":new_embeddings}
+    data = {"Image":new_images, "Label":new_labels, "Embedding":new_embeddings}
     out_df = pd.DataFrame(data)
 
     out_df.to_csv(outfile, index=False)
@@ -198,4 +197,4 @@ if __name__ == "__main__":
     aug_DF = augment_main(DF_labels_new, DF_embeddings, datapath="../data_cropped/", Pconfirm=1.0)
     label_stats(aug_DF, "after augmentation")
 
-    print(type(aug_DF.iloc[0, 1]))
+    #print(type(aug_DF.iloc[0, 1]))

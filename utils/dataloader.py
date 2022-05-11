@@ -30,22 +30,26 @@ class WoundImageDataset(Dataset):
 
     def __getitem__(self, idx):
         img_path = self.img_list[idx]
+        #print(img_path)
         filename = img_path.split("/")[-1]
 
-        label_row = self.img_labels.loc[self.img_labels["Image"]==filename]
+        data = self.img_labels.loc[self.img_labels["Image"]==filename]
         #image = read_image(img_path) # using pytorch read image yields error in transform ToTensor()
         image = Image.open(img_path)
+        #assert(np.all(image[3] == 0))
         #label = self.img_labels.iloc[idx, 1]
         if self.transform:
             image = self.transform(image)
-        #if self.target_transform:
-        #    label = self.target_transform(label)
-        image = image[:3, :]
-        label = label_row.iloc[0, 1:]
+
+        image = image[:3, :] # rgb no a
+        #label = data.iloc[0, 1:]
+        label = np.fromstring(data.iloc[0, 1][1:-1], dtype=np.float, sep=" ")
+        embed = np.fromstring(data.iloc[0, 2][1:-1], dtype=np.float, sep=" ")
 
         #_, label = AUG.thresholding(label,thresh_1=THRESHOLD_1, thresh_2=THRESHOLD_2)    
-        label = torch.FloatTensor(label).T
-        
+        label = torch.FloatTensor(label)
+        embed = torch.FloatTensor(embed)
 
-        return image, label
+        #return image[2], label # use blue channel only
+        return image, label, embed
     
