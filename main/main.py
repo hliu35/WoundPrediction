@@ -40,8 +40,8 @@ parser.add_argument("--b2", type=float, default=0.999, help="adam: decay of firs
 parser.add_argument("--n_cpu", type=int, default=8, help="number of cpu threads to use during batch generation")
 parser.add_argument("--latent_dim", type=int, default=100, help="dimensionality of the latent space") # original: 100, new: 16
 parser.add_argument("--img_size", type=int, default=128, help="size of each image dimension")  # changed from 64 to 128
-#parser.add_argument('--n_classes', type=int, default=4, help='number of classes for dataset')
-parser.add_argument('--n_classes', type=int, default=16, help='number of classes for dataset')
+parser.add_argument('--n_classes', type=int, default=4, help='number of classes for dataset')
+#parser.add_argument('--n_classes', type=int, default=16, help='number of classes for dataset')
 parser.add_argument("--channels", type=int, default=3, help="number of image channels")
 parser.add_argument("--sample_interval", type=int, default=200, help="interval betwen image samples")
 opt = parser.parse_args()
@@ -161,6 +161,7 @@ def run_gan(datapath, annotation_file, outpath="../tmp/"):
 
 
 def run_cgan(datapath, annotation_file, outpath="../tmp/"):
+    # https://www.reddit.com/r/MachineLearning/comments/5asl74/discussion_discriminator_converging_to_0_loss_in/
 
     img_shape = (opt.channels, opt.img_size, opt.img_size)
     n_classes = opt.n_classes
@@ -210,10 +211,10 @@ def run_cgan(datapath, annotation_file, outpath="../tmp/"):
 
     batches_done=0
     for epoch in range(opt.epochs):
-        #for i, (imgs, labels) in enumerate(dataloader):
-        for i, (imgs, _, labels) in enumerate(dataloader):
+        for i, (imgs, labels, _) in enumerate(dataloader):  # TODO: check correctness of 4-dim and 16-dim labels
+        #for i, (imgs, _, labels) in enumerate(dataloader):
 
-            #print(labels)
+            #print(labels.shape)
             #exit()
 
             batch_size = opt.batch_size
@@ -254,8 +255,8 @@ def run_cgan(datapath, annotation_file, outpath="../tmp/"):
             # Generate a batch of images
             #gen_imgs = generator(noise, gen_y)
             # Loss measures generator's ability to fool the discriminator
-            gen_imgs = generator(noise, gen_y)
-            g_loss = adversarial_loss(discriminator(gen_imgs,gen_y).squeeze(), valid)
+            gen_imgs = generator(noise, gen_y).view(batch_size, *img_shape)
+            g_loss = adversarial_loss(discriminator(gen_imgs, gen_y).squeeze(), valid)
 
             g_loss.backward()
             optimizer_G.step()
@@ -273,8 +274,12 @@ def run_cgan(datapath, annotation_file, outpath="../tmp/"):
             # Total discriminator loss
             d_loss = (d_real_loss + d_fake_loss)
 
-            d_loss.backward()
-            optimizer_D.step()
+            # test with conditionally updating discriminator
+            update_threshold = 0.15
+
+            if d_loss > update_threshold:
+                d_loss.backward()
+                optimizer_D.step()
 
 
             # test with Gradient Clipping
