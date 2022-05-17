@@ -50,37 +50,41 @@ class Classifier_Encoder(nn.Module):
               self.state_dict()[v] = copy.deepcopy(weight_dict[k])
 
 
-def loadClassifier():
+def loadClassifier(path_to_class = "model/best_classifier.tar"):
+    ''' input: Path to classifier weights '''
     classifier_encoder_test = Classifier_Encoder()
     classifier_encoder_test.to(device)
-    path_to_class = "model/best_classifier.tar" # Path to classifier weights
     classifier_encoder_test.load_state_dict(torch.load(path_to_class))
     return classifier_encoder_test
 
 
-#Test case of how to use classifier
-classifier = loadClassifier()
-imgPath = "data_cropped\Day 0_A8-1-L.png"
-with open(imgPath, 'rb') as f:
-    img = Image.open(f)
-    img.convert('RGB')
+if __name__ == "__main__":
 
-#Transforms used to turn the img into 244,244,3 that densenet needs and into a Tensor
-#Normalize as well
-transform = transforms.Compose([
-        transforms.Resize(224),
-        transforms.ToTensor(),
-        transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])])
-img_tensor = transform(img)
+    img_shape = 244
 
-#Format into torch stack to be used in classfier
-img_tensor = torch.stack([img_tensor])
+    #Test case of how to use classifier
+    classifier = loadClassifier()
+    imgPath = "data_cropped/Day 0_A8-1-L.png"
+    with open(imgPath, 'rb') as f:
+        img = Image.open(f)
+        img.convert('RGB')
 
-#set classifier to eval
-classifier.eval()
-#Classifier returns the final predictions and 16 embeddings saved respectively
-labelpred, embeddings = classifier(img_tensor.to(device))
+    #Transforms used to turn the img into 244,244,3 that densenet needs and into a Tensor
+    #Normalize as well
+    transform = transforms.Compose([
+            transforms.Resize(img_shape),
+            transforms.ToTensor(),
+            transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])])
+    img_tensor = transform(img)
 
-print(F.softmax(labelpred), embeddings)
+    #Format into torch stack to be used in classfier
+    img_tensor = torch.stack([img_tensor])
+
+    #set classifier to eval
+    classifier.eval()
+    #Classifier returns the final predictions and 16 embeddings saved respectively
+    labelpred, embeddings = classifier(img_tensor.to(device))
+
+    print(F.softmax(labelpred), embeddings)
 
 
