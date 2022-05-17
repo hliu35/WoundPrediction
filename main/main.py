@@ -25,6 +25,7 @@ import torch
 
 
 import gan, dcgan
+import classifier as CLS
 from dataloader import WoundImageDataset
 from synth_labels import synthesize_softmax_labels as synth_softmax
 from synth_labels import synthesize_onehot_labels as synth_onehot
@@ -40,7 +41,7 @@ parser.add_argument("--b2", type=float, default=0.999, help="adam: decay of firs
 parser.add_argument("--n_cpu", type=int, default=8, help="number of cpu threads to use during batch generation")
 parser.add_argument("--latent_dim", type=int, default=100, help="dimensionality of the latent space") # original: 100, new: 16
 parser.add_argument("--img_size", type=int, default=128, help="size of each image dimension")  # changed from 64 to 128
-parser.add_argument('--n_classes', type=int, default=4, help='number of classes for dataset')
+parser.add_argument('--n_classes', type=int, default=16, help='number of classes for dataset')
 #parser.add_argument('--n_classes', type=int, default=16, help='number of classes for dataset')
 parser.add_argument("--channels", type=int, default=3, help="number of image channels")
 parser.add_argument("--sample_interval", type=int, default=200, help="interval betwen image samples")
@@ -175,15 +176,21 @@ def run_cgan(datapath, annotation_file, outpath="../tmp/"):
     img_list = list_full_paths(datapath)
     #print(img_list[:10])
 
-        
     # Loss function
     adversarial_loss = torch.nn.BCELoss()  ######## TEST with MSE
     #adversarial_loss = torch.nn.MSELoss()
+    embedding_loss = torch.nn.MSELoss() # embedding loss with MSE
+    #embedding_loss = torch.nn.CosineEmbeddingLoss() # embedding loss with CEL https://pytorch.org/docs/stable/generated/torch.nn.CosineEmbeddingLoss.html
 
 
     # Initialize Generator and discriminator
     generator = dcgan.Generator(img_shape, opt.latent_dim, opt.n_classes)
     discriminator = dcgan.Discriminator(img_shape, opt.n_classes)
+    
+    classifier = CLS.loadClassifier("../model/best_classifier.tar")
+    for p in classifier.parameters():
+        p.require_grads = False
+    classifier.eval()
 
     # Initialize weights
     #generator.apply(weights_init_normal)
@@ -211,41 +218,44 @@ def run_cgan(datapath, annotation_file, outpath="../tmp/"):
 
     batches_done=0
     for epoch in range(opt.epochs):
-        for i, (imgs, labels, _) in enumerate(dataloader):  # TODO: check correctness of 4-dim and 16-dim labels
-        #for i, (imgs, _, labels) in enumerate(dataloader):
-
-            #print(labels.shape)
-            #exit()
-
-            batch_size = opt.batch_size
+        for i, (imgs, Y4, Y16) in enumerate(dataloader):
+            # training parameters
+            B = opt.batch_size
 
             # SKIP BATCH SIZE OF 1
-            if imgs.shape[0] < batch_size: continue
+            if imgs.shape[0] < B: continue
+
+
+            # Sample labels as generator input
+            if opt.n_classes == 4:
+                real_y = Y4
+                gen_y = synth_softmax(n_classes=opt.n_classes, batch_size=B).to("cuda") #     SYNTH 16-dim embeddings?     ????????????????????????????????????????????????????????????????
+                #gen_y = synth_onehot(n_classes=opt.n_classes, batch_size=batch_size, fixed=False).to("cuda")
+            
+            elif opt.n_classes == 16:
+                real_y = Y16
+                gen_y = Y16
+
+            else:
+                raise NotImplementedError("Check n_classes in arguments")
+
+            real_y = real_y.cuda()
+            gen_y = gen_y.cuda()
+            
+
+            # sample noise for generating fakes
+            noise = Variable(torch.randn((B, opt.latent_dim)).cuda())
 
             # Adversarial ground truths
-            valid = Variable(torch.ones(batch_size).cuda(), requires_grad=False)
-            fake = Variable(torch.zeros(batch_size).cuda(), requires_grad=False)
+            valid = Variable(torch.ones(B).cuda(), requires_grad=False)
+            fake = Variable(torch.zeros(B).cuda(), requires_grad=False)
 
             # Configure input
             real_imgs = Variable(imgs.type(torch.FloatTensor).cuda())
-
             #real_y = torch.zeros(batch_size, n_classes)
             #real_y = Variable(real_y.scatter_(1, labels.view(batch_size, n_classes), 1).cuda())
-            real_y = labels.cuda()
 
-            #y = Variable(y.cuda())
 
-            # Sample noise and labels as generator input
-            noise = Variable(torch.randn((batch_size, opt.latent_dim)).cuda())
-            #gen_labels = (torch.rand(batch_size, 1) * n_classes).type(torch.LongTensor)
-            #gen_y = torch.zeros(batch_size, n_classes)
-            #gen_y = Variable(gen_y.scatter_(1, gen_labels.view(batch_size, 1), 1).cuda())
-            gen_y = synth_softmax(n_classes=opt.n_classes, batch_size=batch_size).to("cuda") #     SYNTH 16-dim embeddings?     ????????????????????????????????????????????????????????????????
-            #gen_y = synth_onehot(n_classes=opt.n_classes, batch_size=batch_size, fixed=False).to("cuda")
-            
-            #print(gen_y)
-            #exit()
-            
             # -----------------
             #  Train Generator
             # -----------------
@@ -255,7 +265,7 @@ def run_cgan(datapath, annotation_file, outpath="../tmp/"):
             # Generate a batch of images
             #gen_imgs = generator(noise, gen_y)
             # Loss measures generator's ability to fool the discriminator
-            gen_imgs = generator(noise, gen_y).view(batch_size, *img_shape)
+            gen_imgs = generator(noise, gen_y).view(B, *img_shape)
             g_loss = adversarial_loss(discriminator(gen_imgs, gen_y).squeeze(), valid)
 
             g_loss.backward()
@@ -265,14 +275,22 @@ def run_cgan(datapath, annotation_file, outpath="../tmp/"):
             # ---------------------
             #  Train Discriminator
             # ---------------------
+
             optimizer_D.zero_grad()
+
             # Loss for real images
             d_real_loss = adversarial_loss(discriminator(real_imgs, real_y).squeeze(), valid)
             # Loss for fake images
-            
             d_fake_loss = adversarial_loss(discriminator(gen_imgs.detach(),gen_y).squeeze(), fake)
+            
+            # Loss for embeddings
+            label_pred, fake_embeddings = classifier(gen_imgs.detach())
+            emb_loss = embedding_loss(gen_y, fake_embeddings)
+            
+            
             # Total discriminator loss
-            d_loss = (d_real_loss + d_fake_loss)
+            #d_loss = (d_real_loss + d_fake_loss)
+            d_loss = (d_real_loss + d_fake_loss + emb_loss)
 
             # test with conditionally updating discriminator
             update_threshold = 0.15
@@ -294,13 +312,14 @@ def run_cgan(datapath, annotation_file, outpath="../tmp/"):
             batches_done = epoch * len(dataloader) + i
             if batches_done % opt.sample_interval == 0:
                 #noise = Variable(torch.FloatTensor(np.random.normal(0, 1, (batch_size, opt.latent_dim))).cuda())
-                noise = Variable(torch.randn((batch_size, opt.latent_dim)).cuda())
+                noise = Variable(torch.randn((B, opt.latent_dim)).cuda())
 
                 # fixed labels
                 #y_ = torch.LongTensor(np.array([num for num in range(n_classes)])).view(n_classes,1).expand(-1,n_classes).contiguous()
                 #y_fixed = torch.zeros(n_classes**2, n_classes)
                 #y_fixed = Variable(y_fixed.scatter_(1,y_.view(n_classes**2,1),1).cuda())
-                y_fixed = synth_onehot(n_classes=opt.n_classes, batch_size=batch_size, fixed=True).to("cuda")
+                #y_fixed = synth_onehot(n_classes=opt.n_classes, batch_size=B, fixed=True).to("cuda")
+                y_fixed = gen_y
 
                 gen_imgs = generator(noise, y_fixed).view(-1, *img_shape)
                 save_image(gen_imgs.data, os.path.join(outpath, '%d-%d.png' % (epoch,batches_done)), nrow=n_classes, normalize=True) # nrow = number of img per row
