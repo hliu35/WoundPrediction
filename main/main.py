@@ -40,7 +40,7 @@ parser.add_argument("--b1", type=float, default=0.5, help="adam: decay of first 
 parser.add_argument("--b2", type=float, default=0.999, help="adam: decay of first order momentum of gradient")
 parser.add_argument("--n_cpu", type=int, default=8, help="number of cpu threads to use during batch generation")
 parser.add_argument("--latent_dim", type=int, default=100, help="dimensionality of the latent space") # original: 100, new: 16
-parser.add_argument("--img_size", type=int, default=128, help="size of each image dimension")  # changed from 64 to 128
+parser.add_argument("--img_size", type=int, default=256, help="size of each image dimension")  # changed from 64 to 128
 parser.add_argument('--n_classes', type=int, default=16, help='number of classes for dataset')
 #parser.add_argument('--n_classes', type=int, default=16, help='number of classes for dataset')
 parser.add_argument("--channels", type=int, default=3, help="number of image channels")
@@ -214,6 +214,16 @@ def run_cgan(datapath, annotation_file, outpath="../tmp/"):
     optimizer_D = torch.optim.Adam(discriminator.parameters(), lr=opt.lr, betas=(opt.b1, opt.b2))
     #optimizer_G = torch.optim.RMSprop(generator.parameters(), lr=opt.lr)            ########## optimizer changed from default
     #optimizer_D = torch.optim.RMSprop(discriminator.parameters(), lr=opt.lr)
+
+
+    # densenet image preparation
+    DENSENET_IMAGE_SHAPE = 244
+    transform_densenet = T.Compose([T.Resize(DENSENET_IMAGE_SHAPE), T.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])])
+
+
+    # conditionally updating discriminator
+    #D_update_threshold = 0.15
+    D_update_threshold = 0.00
     
 
     batches_done=0
@@ -284,7 +294,10 @@ def run_cgan(datapath, annotation_file, outpath="../tmp/"):
             d_fake_loss = adversarial_loss(discriminator(gen_imgs.detach(),gen_y).squeeze(), fake)
             
             # Loss for embeddings
-            label_pred, fake_embeddings = classifier(gen_imgs.detach())
+            cls_input = gen_imgs.detach()
+            cls_input = transform_densenet(cls_input)
+
+            label_pred, fake_embeddings = classifier(cls_input)         # NOT SURE IF DETACHING AGAIN IS CORRECT FOR LOSS COMPUTATION
             emb_loss = embedding_loss(gen_y, fake_embeddings)
             
             
@@ -292,10 +305,9 @@ def run_cgan(datapath, annotation_file, outpath="../tmp/"):
             #d_loss = (d_real_loss + d_fake_loss)
             d_loss = (d_real_loss + d_fake_loss + emb_loss)
 
-            # test with conditionally updating discriminator
-            update_threshold = 0.15
-
-            if d_loss > update_threshold:
+            
+            # conditional update D
+            if d_loss >= D_update_threshold:
                 d_loss.backward()
                 optimizer_D.step()
 
