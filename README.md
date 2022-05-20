@@ -10,3 +10,7 @@ https://openreview.net/pdf?id=XOjv2HxIF6i
 
 Discriminator
 https://arxiv.org/pdf/2104.00567.pdf
+
+
+
+data_augmented folder is for training only. 
