@@ -165,7 +165,7 @@ def run_cgan(datapath, annotation_file, outpath="../tmp/"):
     # https://www.reddit.com/r/MachineLearning/comments/5asl74/discussion_discriminator_converging_to_0_loss_in/
 
     img_shape = (opt.channels, opt.img_size, opt.img_size)
-    n_classes = opt.n_classes
+    C = opt.n_classes
 
     # create output folder
     if os.path.exists(outpath):
@@ -174,18 +174,25 @@ def run_cgan(datapath, annotation_file, outpath="../tmp/"):
 
     # retrieve the list of image paths
     img_list = list_full_paths(datapath)
-    #print(img_list[:10])
+
+    test_imgs = [x for x in img_list if "Y8-4-L" in x or "A8-1-R" in x]
+    val_imgs = [x for x in img_list if "Y8-4-R" in x or "A8-1-L" in x]
+    train_imgs = set(img_list).difference(set(test_imgs))
+    train_imgs = train_imgs.difference(set(val_imgs))
+    train_imgs = list(train_imgs)
+
 
     # Loss function
     adversarial_loss = torch.nn.BCELoss()  ######## TEST with MSE
     #adversarial_loss = torch.nn.MSELoss()
-    embedding_loss = torch.nn.MSELoss() # embedding loss with MSE
+    #embedding_loss = torch.nn.MSELoss() # embedding loss with MSE
+    embedding_loss = torch.nn.BCELoss()
     #embedding_loss = torch.nn.CosineEmbeddingLoss() # embedding loss with CEL https://pytorch.org/docs/stable/generated/torch.nn.CosineEmbeddingLoss.html
 
 
     # Initialize Generator and discriminator
-    generator = dcgan.Generator(img_shape, opt.latent_dim, opt.n_classes)
-    discriminator = dcgan.Discriminator(img_shape, opt.n_classes)
+    generator = dcgan.Generator(img_shape, opt.latent_dim, C)
+    discriminator = dcgan.Discriminator(img_shape, C)
     
     classifier = CLS.loadClassifier("../model/best_classifier.tar")
     for p in classifier.parameters():
@@ -203,11 +210,20 @@ def run_cgan(datapath, annotation_file, outpath="../tmp/"):
 
     # Configure data loader and compose transform functions
     TRANSFORMS = T.Compose([T.ToTensor(), T.Resize((opt.img_size, opt.img_size))])
-    dataset = WoundImageDataset(img_list, \
-        annotation_file,\
-        transform = TRANSFORMS) # can also customize transform
+    #dataset = WoundImageDataset(img_list, \
+    #    annotation_file,\
+    #    transform = TRANSFORMS) # can also customize transform
 
-    dataloader = DataLoader(dataset, batch_size=opt.batch_size, shuffle=True)
+    #dataloader = DataLoader(dataset, batch_size=opt.batch_size, shuffle=True)
+
+    train_dataset = WoundImageDataset(train_imgs, annotation_file, transform = TRANSFORMS)
+    #val_dataset = WoundImageDataset(val_imgs, annotation_file, transform = TRANSFORMS)
+    #test_dataset = WoundImageDataset(test_imgs, annotation_file, transform = TRANSFORMS)
+
+    train_dataloader = DataLoader(train_dataset, batch_size=opt.batch_size, shuffle=True)
+    #val_dataloader = DataLoader(val_dataset, batch_size=opt.batch_size, shuffle=False)
+    #test_dataloader = DataLoader(test_dataset, batch_size=opt.batch_size, shuffle=False)
+
 
     # Optimizers
     optimizer_G = torch.optim.Adam(generator.parameters(), lr=opt.lr, betas=(opt.b1, opt.b2))
@@ -228,7 +244,8 @@ def run_cgan(datapath, annotation_file, outpath="../tmp/"):
 
     batches_done=0
     for epoch in range(opt.epochs):
-        for i, (imgs, Y4, Y16) in enumerate(dataloader):
+        #for i, (imgs, Y4, Y16) in enumerate(dataloader):
+        for i, (imgs, Y4, Y16) in enumerate(train_dataloader):
             # training parameters
             B = opt.batch_size
 
@@ -237,20 +254,19 @@ def run_cgan(datapath, annotation_file, outpath="../tmp/"):
 
 
             # Sample labels as generator input
-            if opt.n_classes == 4:
-                real_y = Y4
-                gen_y = synth_softmax(n_classes=opt.n_classes, batch_size=B).to("cuda") #     SYNTH 16-dim embeddings?     ????????????????????????????????????????????????????????????????
-                #gen_y = synth_onehot(n_classes=opt.n_classes, batch_size=batch_size, fixed=False).to("cuda")
+            if C == 4:
+                real_y = Y4.cuda()
+                gen_y = synth_softmax(n_classes=C, batch_size=B).to("cuda")
+                #gen_y = synth_onehot(n_classes=C, batch_size=B, sorted=False).to("cuda")
+                y_disp = synth_onehot(n_classes=C, batch_size=B, sorted=True).to("cuda") # labels for display
             
-            elif opt.n_classes == 16:
-                real_y = Y16
-                gen_y = Y16
+            elif C == 16:
+                real_y = Y16.cuda()
+                gen_y = Y16.cuda()
+                y_disp = Y16.cuda() # labels for display
 
             else:
                 raise NotImplementedError("Check n_classes in arguments")
-
-            real_y = real_y.cuda()
-            gen_y = gen_y.cuda()
             
 
             # sample noise for generating fakes
@@ -297,8 +313,12 @@ def run_cgan(datapath, annotation_file, outpath="../tmp/"):
             cls_input = gen_imgs.detach()
             cls_input = transform_densenet(cls_input)
 
+            target = gen_y
+
             label_pred, fake_embeddings = classifier(cls_input)         # NOT SURE IF DETACHING AGAIN IS CORRECT FOR LOSS COMPUTATION
-            emb_loss = embedding_loss(gen_y, fake_embeddings)
+            prediction = F.softmax(label_pred) if C == 4 else fake_embeddings # label_pred has not been softmaxed yet
+
+            emb_loss = embedding_loss(target, prediction)
             
             
             # Total discriminator loss
@@ -318,28 +338,24 @@ def run_cgan(datapath, annotation_file, outpath="../tmp/"):
             torch.nn.utils.clip_grad_norm(discriminator.parameters(), _clip)
 
             # print results
-            print ("[Epoch %d/%d] [Batch %d/%d] [D loss: %f] [G loss: %f]" % (epoch, opt.epochs, i, len(dataloader),
+            print ("[Epoch %d/%d] [Batch %d/%d] [D loss: %f] [G loss: %f]" % (epoch, opt.epochs, i, len(train_dataloader),
                                                                 d_loss.data.cpu(), g_loss.data.cpu()))
 
-            batches_done = epoch * len(dataloader) + i
+            batches_done = epoch * len(train_dataloader) + i
             if batches_done % opt.sample_interval == 0:
                 #noise = Variable(torch.FloatTensor(np.random.normal(0, 1, (batch_size, opt.latent_dim))).cuda())
                 noise = Variable(torch.randn((B, opt.latent_dim)).cuda())
 
-                # fixed labels
-                #y_ = torch.LongTensor(np.array([num for num in range(n_classes)])).view(n_classes,1).expand(-1,n_classes).contiguous()
-                #y_fixed = torch.zeros(n_classes**2, n_classes)
-                #y_fixed = Variable(y_fixed.scatter_(1,y_.view(n_classes**2,1),1).cuda())
-                #y_fixed = synth_onehot(n_classes=opt.n_classes, batch_size=B, fixed=True).to("cuda")
-                y_fixed = gen_y
-
-                gen_imgs = generator(noise, y_fixed).view(-1, *img_shape)
-                save_image(gen_imgs.data, os.path.join(outpath, '%d-%d.png' % (epoch,batches_done)), nrow=n_classes, normalize=True) # nrow = number of img per row
+                # y_disp was defined at the very beginning of training
+                gen_imgs = generator(noise, y_disp).view(-1, *img_shape)
+                save_image(gen_imgs.data, os.path.join(outpath, '%d-%d.png' % (epoch,batches_done)), nrow=C, normalize=True) # nrow = number of img per row
 
         if epoch % 10 == 0:
             torch.save(generator, os.path.join(outpath, "cgan_gen.pth"))
 
 
+
+    #return {"model":[generator, discriminator], "dataloaders":[train_dataloader, val_dataloader, test_dataloader]}
 
 
 
@@ -363,7 +379,7 @@ if __name__ == "__main__":
 
     # noise = Variable(torch.randn((opt.batch_size, opt.latent_dim)).cuda())
     # stage = 2
-    # y_fixed = torch.ones((opt.batch_size, opt.n_classes)).to("cuda")
+    # y_fixed = torch.ones((opt.batch_size, C)).to("cuda")
     # y_fixed[:, stage] = 1
 
     # gen_imgs = generator(noise, y_fixed).view(-1, *img_shape)
