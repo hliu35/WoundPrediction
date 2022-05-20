@@ -60,7 +60,7 @@ def loadClassifier(path_to_class = "model/best_classifier.tar"):
 
 if __name__ == "__main__":
 
-    img_shape = 244
+    img_shape = 224
 
     #Test case of how to use classifier
     classifier = loadClassifier()
