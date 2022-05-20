@@ -166,7 +166,7 @@ def run_cgan(datapath, annotation_file, outpath="../tmp/"):
 
     img_shape = (opt.channels, opt.img_size, opt.img_size)
     C = opt.n_classes
-    if C != 4 or C != 16: raise NotImplementedError("Check n_classes in arguments")
+    if C not in [4, 16]: raise NotImplementedError("Check n_classes in arguments")
 
     # create output folder
     if os.path.exists(outpath):
