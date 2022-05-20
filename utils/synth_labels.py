@@ -28,11 +28,11 @@ def synthesize_softmax_labels(n_classes, batch_size, count=1000):
     return res
 
 
-def synthesize_onehot_labels(n_classes, batch_size, fixed=True):
+def synthesize_onehot_labels(n_classes, batch_size, sorted=True):
     batch = np.zeros((batch_size, n_classes))
 
     for i in range(batch_size):
-        if not fixed: j = np.random.randint(low=0, high=n_classes)
+        if not sorted: j = np.random.randint(low=0, high=n_classes)
         else: j = i % n_classes
         batch[i, j] = 1.0
     
