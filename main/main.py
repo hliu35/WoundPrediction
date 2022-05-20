@@ -166,6 +166,7 @@ def run_cgan(datapath, annotation_file, outpath="../tmp/"):
 
     img_shape = (opt.channels, opt.img_size, opt.img_size)
     C = opt.n_classes
+    if C != 4 or C != 16: raise NotImplementedError("Check n_classes in arguments")
 
     # create output folder
     if os.path.exists(outpath):
@@ -185,9 +186,15 @@ def run_cgan(datapath, annotation_file, outpath="../tmp/"):
     # Loss function
     adversarial_loss = torch.nn.BCELoss()  ######## TEST with MSE
     #adversarial_loss = torch.nn.MSELoss()
-    #embedding_loss = torch.nn.MSELoss() # embedding loss with MSE
-    embedding_loss = torch.nn.BCELoss()
-    #embedding_loss = torch.nn.CosineEmbeddingLoss() # embedding loss with CEL https://pytorch.org/docs/stable/generated/torch.nn.CosineEmbeddingLoss.html
+    
+    if C == 16:
+        # if it's 16, they are not binary values and should be treated as random numbers
+        embedding_loss = torch.nn.MSELoss() # embedding loss with MSE
+        #embedding_loss = torch.nn.CosineEmbeddingLoss() # embedding loss with CEL https://pytorch.org/docs/stable/generated/torch.nn.CosineEmbeddingLoss.html
+    else:
+        # if it's 4 (stages), then it must be binary cross entropy
+        embedding_loss = torch.nn.BCELoss()
+        
 
 
     # Initialize Generator and discriminator
@@ -264,9 +271,6 @@ def run_cgan(datapath, annotation_file, outpath="../tmp/"):
                 real_y = Y16.cuda()
                 gen_y = Y16.cuda()
                 y_disp = Y16.cuda() # labels for display
-
-            else:
-                raise NotImplementedError("Check n_classes in arguments")
             
 
             # sample noise for generating fakes
