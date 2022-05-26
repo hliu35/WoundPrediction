@@ -5,13 +5,17 @@ import numpy as np
 import pandas as pd
 from PIL import Image, ImageOps, ImageEnhance
 
+# Set Random Seed
+np.random.seed(10)
+
+
 # Thresholding parameters
 THRESHOLD_1 = 0.75
 THRESHOLD_2 = 0.4
 STD_MAX = 0.3
 
 # Augmentation parameters
-augmenting_probabilities = [0.6, 0.4, 0.0, 0.7]
+augmenting_probabilities = [0.6, 0.4, 0.0, 0.5]
 
 
 def from_string(embedding_str):
@@ -173,7 +177,8 @@ def augment_main(df_labels, df_embeddings, datapath = "../data/", outpath="../da
 if __name__ == "__main__":
     # original source files
     label_file = "../data/labels.csv"
-    embedding_file = "../data/embeddings.csv"
+    #embedding_file = "../data/embeddings.csv"
+    embedding_file = "../data/new_embeddings.csv"
     
     # load DFs
     DF_labels = pd.read_csv(label_file) # load labels
