@@ -14,3 +14,10 @@ https://arxiv.org/pdf/2104.00567.pdf
 
 
 data_augmented folder is for training only. 
+
+
+
+To run the user-friendly interface
+```
+python3 main/main.py
+```
