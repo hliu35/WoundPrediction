@@ -83,6 +83,7 @@ def list_full_paths_combs(directory):
         combs.append([comb for comb in combinations(seperated_Ids[i], 3)])
 
     combs_list = [item for sublist in combs for item in sublist]
+    random.shuffle(combs_list)
     return combs_list
 
 
