@@ -15,7 +15,7 @@ THRESHOLD_2 = 0.4
 STD_MAX = 0.3
 
 # Augmentation parameters
-augmenting_probabilities = [0.6, 0.4, 0.0, 0.5]
+augmenting_probabilities = [0.90, 0.60, 0.0, 0.45]
 
 
 def from_string(embedding_str):
