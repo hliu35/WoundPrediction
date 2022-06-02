@@ -12,28 +12,23 @@ from torchvision.transforms import ToTensor, Resize
 
 from torchvision.io import read_image
 
-#import augment as AUG
 
-#THRESHOLD_1 = 0.75
-#THRESHOLD_2 = 0.4
-
-class WoundImageDataset_ijk(Dataset):
+class WoundImagePairsDataset(Dataset):
     def __init__(self, combs, annotations_file, transform=None, target_transform=None):
-        #self.img_labels = pd.read_csv(annotations_file)
         self.img_list = combs
+        self.img_labels = pd.read_csv(annotations_file)
+
         self.transform = transform 
         self.target_transform = target_transform
 
     def __len__(self):
-        #return len(self.img_labels)
         return len(self.img_list)
 
     def __getitem__(self, idx):
         comb = self.img_list[idx]
-        #print(img_path)
         filename = comb[2].split("/")[-1]
 
-        #data = self.img_labels.loc[self.img_labels["Image"]==filename]
+        data = self.img_labels.loc[self.img_labels["Image"]==filename]
         #image = read_image(img_path) # using pytorch read image yields error in transform ToTensor()
         image_i = Image.open(comb[0])
         image_j = Image.open(comb[1])
@@ -43,8 +38,7 @@ class WoundImageDataset_ijk(Dataset):
         #image_i.show()
         #image_j.show()
         #image_k.show()
-        #assert(np.all(image[3] == 0))
-        #label = self.img_labels.iloc[idx, 1]
+
         if self.transform:
             image_i = self.transform(image_i)
             image_j = self.transform(image_j)
@@ -53,15 +47,13 @@ class WoundImageDataset_ijk(Dataset):
         image_i = image_i[:3, :] # rgb no a
         image_j = image_j[:3, :]
         image_k = image_k[:3, :]
-        #label = data.iloc[0, 1:]
-        #label = np.fromstring(data.iloc[0, 1][1:-1], dtype=np.float, sep=" ")
-        #embed = np.fromstring(data.iloc[0, 2][1:-1], dtype=np.float, sep=" ")
 
-        #_, label = AUG.thresholding(label,thresh_1=THRESHOLD_1, thresh_2=THRESHOLD_2)    
-        #label = torch.FloatTensor(label)
-        #embed = torch.FloatTensor(embed)
+        # these are data from day k only
+        label = np.fromstring(data.iloc[0, 1][1:-1], dtype=np.float, sep=" ")
+        embed = np.fromstring(data.iloc[0, 2][1:-1], dtype=np.float, sep=" ")
 
-        #return image[2], label # use blue channel only
-        return image_i, image_j, image_k
-        #label, embed
+        label = torch.FloatTensor(label)
+        embed = torch.FloatTensor(embed)
+
+        return image_i, image_j, image_k, label, embed
     
