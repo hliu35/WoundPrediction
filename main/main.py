@@ -48,8 +48,10 @@ parser.add_argument("--sample_interval", type=int, default=200, help="interval b
 opt = parser.parse_args()
 
 
-img_shape = (opt.channels, opt.img_size, opt.img_size)
+IMG_SHAPE = (opt.channels, opt.img_size, opt.img_size)
 CUDA = True if torch.cuda.is_available() else False
+CLIP = 0.5
+D_UPDATE_THRESHOLD = 0.8
 
 
 
@@ -77,8 +79,8 @@ def run_gan(datapath, annotation_file, outpath="../tmp/"):
     adversarial_loss = torch.nn.BCELoss()
 
     # Initialize generator and discriminator
-    generator = gan.Generator(img_shape, opt.latent_dim)
-    discriminator = gan.Discriminator(img_shape)
+    generator = gan.Generator(IMG_SHAPE, opt.latent_dim)
+    discriminator = gan.Discriminator(IMG_SHAPE)
 
     if CUDA:
         generator.cuda()
@@ -164,7 +166,6 @@ def run_gan(datapath, annotation_file, outpath="../tmp/"):
 def run_cgan(datapath, annotation_file, outpath="../tmp/"):
     # https://www.reddit.com/r/MachineLearning/comments/5asl74/discussion_discriminator_converging_to_0_loss_in/
 
-    img_shape = (opt.channels, opt.img_size, opt.img_size)
     C = opt.n_classes
     if C not in [4, 16]: raise NotImplementedError("Check n_classes in arguments")
 
@@ -198,8 +199,8 @@ def run_cgan(datapath, annotation_file, outpath="../tmp/"):
 
 
     # Initialize Generator and discriminator
-    generator = dcgan.Generator(img_shape, opt.latent_dim, C)
-    discriminator = dcgan.Discriminator(img_shape, C)
+    generator = dcgan.Generator(IMG_SHAPE, opt.latent_dim, C)
+    discriminator = dcgan.Discriminator(IMG_SHAPE, C)
     
     classifier = CLS.loadClassifier("../model/best_classifier.tar")
     for p in classifier.parameters():
@@ -243,11 +244,6 @@ def run_cgan(datapath, annotation_file, outpath="../tmp/"):
     DENSENET_IMAGE_SHAPE = 244
     transform_densenet = T.Compose([T.Resize(DENSENET_IMAGE_SHAPE), T.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])])
 
-
-    # conditionally updating discriminator
-    #D_update_threshold = 0.15
-    D_update_threshold = 0.00
-    
 
     batches_done=0
     for epoch in range(opt.epochs):
@@ -295,10 +291,12 @@ def run_cgan(datapath, annotation_file, outpath="../tmp/"):
             # Generate a batch of images
             #gen_imgs = generator(noise, gen_y)
             # Loss measures generator's ability to fool the discriminator
-            gen_imgs = generator(noise, gen_y).view(B, *img_shape)
-            g_loss = adversarial_loss(discriminator(gen_imgs, gen_y).squeeze(), valid)
+            gen_imgs = generator(noise, gen_y).view(B, *IMG_SHAPE)
+            prediction = discriminator(gen_imgs, gen_y).squeeze()
+            g_loss = adversarial_loss(prediction, valid)
 
             g_loss.backward()
+            torch.nn.utils.clip_grad_norm_(generator.parameters(), CLIP) # notice the trailing _ representing in-place
             optimizer_G.step()
 
 
@@ -331,16 +329,13 @@ def run_cgan(datapath, annotation_file, outpath="../tmp/"):
 
             
             # conditional update D
-            if d_loss >= D_update_threshold:
+            #if d_loss >= D_UPDATE_THRESHOLD:
+            if g_loss <= 10.0:   # TEST
                 d_loss.backward()
+                torch.nn.utils.clip_grad_norm_(discriminator.parameters(), CLIP) # notice the trailing _ representing in-place
                 optimizer_D.step()
 
-
-            # test with Gradient Clipping
-            _clip = 0.25
-            torch.nn.utils.clip_grad_norm(generator.parameters(), _clip)
-            torch.nn.utils.clip_grad_norm(discriminator.parameters(), _clip)
-
+            
             # print results
             print ("[Epoch %d/%d] [Batch %d/%d] [D loss: %f] [G loss: %f]" % (epoch, opt.epochs, i, len(train_dataloader),
                                                                 d_loss.data.cpu(), g_loss.data.cpu()))
@@ -351,8 +346,10 @@ def run_cgan(datapath, annotation_file, outpath="../tmp/"):
                 noise = Variable(torch.randn((B, opt.latent_dim)).cuda())
 
                 # y_disp was defined at the very beginning of training
-                gen_imgs = generator(noise, y_disp).view(-1, *img_shape)
-                save_image(gen_imgs.data, os.path.join(outpath, '%d-%d.png' % (epoch,batches_done)), nrow=C, normalize=True) # nrow = number of img per row
+                #print(y_disp)
+                gen_imgs = generator(noise, y_disp).view(-1, *IMG_SHAPE)
+                #save_image(gen_imgs.data, os.path.join(outpath, '%d-%d.png' % (epoch,batches_done)), nrow=C//4, normalize=True) # nrow = number of img per row, original C, current C//4
+                save_image(imgs.data, os.path.join(outpath, '%d-%d.png' % (epoch,batches_done)), nrow=C//2, normalize=True) # real data
 
         if epoch % 10 == 0:
             torch.save(generator, os.path.join(outpath, "cgan_gen.pth"))
@@ -376,15 +373,3 @@ if __name__ == "__main__":
     # train/test the models
     #run_gan(datapath, annotation_file)
     run_cgan(datapath, annotation_file)
-
-    # custom test scripts
-    
-    # generator = torch.load("../tmp/cgan_gen.pth")
-
-    # noise = Variable(torch.randn((opt.batch_size, opt.latent_dim)).cuda())
-    # stage = 2
-    # y_fixed = torch.ones((opt.batch_size, C)).to("cuda")
-    # y_fixed[:, stage] = 1
-
-    # gen_imgs = generator(noise, y_fixed).view(-1, *img_shape)
-    # save_image(gen_imgs.data, os.path.join("../tmp/", 'test_stage_%d.png' % (stage)), nrow=opt.batch_size, normalize=True) # nrow = number of img per row
