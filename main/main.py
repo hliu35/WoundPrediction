@@ -22,6 +22,7 @@ from torch.autograd import Variable
 import torch.nn as nn
 import torch.nn.functional as F
 import torch
+from itertools import combinations
 
 
 import gan, dcgan
@@ -61,6 +62,31 @@ def list_full_paths(directory):
     #test_list = [x for x in full_list if "Day 15" in x] # test with only day 15 data
     return full_list
     #return test_list
+
+def list_full_paths_combs(directory):
+    full_list = [os.path.join(directory, file) for file in os.listdir(directory) if "png" in file]
+    Ids = []
+    for i in range(16):
+        temp = full_list[i].split("/")[-1]
+        Ids.append(temp.split("_")[1])
+
+    seperated_Ids = []
+    for id in Ids:
+        id_list = []
+        for png in full_list:
+            if id in png:
+                id_list.append(png)
+        for i in range(6):
+            id_list.append(id_list.pop(1))
+        seperated_Ids.append(id_list)
+
+    combs = []
+    for i in range(16):
+        combs.append([comb for comb in combinations(seperated_Ids[i], 3)])
+
+    combs_list = [item for sublist in combs for item in sublist]
+    random.shuffle(combs_list)
+    return combs_list
 
 
 def run_gan(datapath, annotation_file, outpath="../tmp/"):
