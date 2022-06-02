@@ -27,7 +27,7 @@ import temporal_encoder as TE
 import temporal_classifier as TC
 
 #from dataloader import WoundImageDataset
-from dataloader_ijk import WoundImagePairsDataset # new dataset with day i and j
+from dataloader import WoundImagePairsDataset # new dataset with day i and j
 from synth_labels import synthesize_softmax_labels as synth_softmax
 from synth_labels import synthesize_onehot_labels as synth_onehot
 
@@ -282,8 +282,6 @@ def train_cgan(datapath, annotation_file, outpath="../tmp/"):
     # Optimizers
     optimizer_G = torch.optim.Adam(generator.parameters(), lr=opt.lr, betas=(opt.b1, opt.b2))
     optimizer_D = torch.optim.Adam(discriminator.parameters(), lr=opt.lr, betas=(opt.b1, opt.b2))
-    #optimizer_G = torch.optim.RMSprop(generator.parameters(), lr=opt.lr)            ########## optimizer changed from default
-    #optimizer_D = torch.optim.RMSprop(discriminator.parameters(), lr=opt.lr)
 
 
     # densenet image preparation
@@ -338,6 +336,7 @@ def train_cgan(datapath, annotation_file, outpath="../tmp/"):
 
             # Generate a batch of images
             #gen_imgs = generator(noise, gen_y)
+
             # Loss measures generator's ability to fool the discriminator
             gen_imgs = generator(noise, gen_y).view(B, *IMG_SHAPE)
             prediction = discriminator(gen_imgs, gen_y).squeeze()
