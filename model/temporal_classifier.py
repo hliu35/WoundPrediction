@@ -24,7 +24,7 @@ N_CHANNELS = 3 # input channels (r, g, b) = 3
 
 class SiameseCNN(nn.Module):
     # initializers
-    def __init__(self, img_shape, latent_dim=32):
+    def __init__(self, img_shape, latent_dim):
         super(SiameseCNN, self).__init__()
         self.img_shape = img_shape
         self.latent_dim = latent_dim
@@ -48,6 +48,7 @@ class SiameseCNN(nn.Module):
         x = self.pool(x)
         x = x.view(x.size(0),-1)
         
+        x = F.leaky_relu(self.fc1(x), 0.2) # test w/o batchnorm
         x = F.leaky_relu(self.fc2(x), 0.2) # test w/o batchnorm
         x = self.fc3(x) # test w/o batchnorm
         
@@ -57,9 +58,8 @@ class SiameseCNN(nn.Module):
 
 
 class Classifier(nn.Module):
-    def __init__(self, latent_dim=32):
-        super(SiameseCNN, self).__init__()
-        self.latent_dim = latent_dim
+    def __init__(self, latent_dim):
+        super(Classifier, self).__init__()
 
         self.fc1 = nn.Linear(latent_dim * 2, latent_dim // 2)
         self.fc2 = nn.Linear(latent_dim // 2, 1)
@@ -69,6 +69,26 @@ class Classifier(nn.Module):
         z = F.relu(self.fc1(z))
         logit = self.fc2(z)
         pred = torch.sigmoid(logit)
+
+        return pred
+
+
+
+class TemporalClassifier(nn.Module):
+    def __init__(self, img_shape, latent_dim=32):
+        super(TemporalClassifier, self).__init__()
+        self.latent_dim = latent_dim
+
+        self.cnn = SiameseCNN(img_shape, latent_dim)
+        self.classifier = Classifier(latent_dim)
+
+
+
+    def forward(self, img_1, img_2):
+        # img_1 should be a predecessor of img_2
+        u = self.cnn(img_1)
+        v = self.cnn(img_2)
+        pred = self.classifier(u,v)
 
         return pred
 
