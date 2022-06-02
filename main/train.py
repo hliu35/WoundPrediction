@@ -4,25 +4,22 @@ import sys
 import shutil
 import argparse
 import random
+from itertools import combinations
 
 sys.path.insert(0, '../model')
 sys.path.insert(0, '../utils')
 
 import numpy as np
-import scipy
-import matplotlib.pyplot as plt
 
 import torchvision.transforms as T
 from torchvision.utils import save_image
 
 from torch.utils.data import DataLoader
-from torchvision import datasets
 from torch.autograd import Variable
 
-import torch.nn as nn
-import torch.nn.functional as F
 import torch
-from itertools import combinations
+import torch.nn.functional as F
+
 
 
 import gan, dcgan
