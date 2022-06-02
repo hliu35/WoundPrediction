@@ -45,11 +45,9 @@ class WoundImageDataset(Dataset):
         #label = data.iloc[0, 1:]
         label = np.fromstring(data.iloc[0, 1][1:-1], dtype=np.float, sep=" ")
         embed = np.fromstring(data.iloc[0, 2][1:-1], dtype=np.float, sep=" ")
-
-        #_, label = AUG.thresholding(label,thresh_1=THRESHOLD_1, thresh_2=THRESHOLD_2)    
+    
         label = torch.FloatTensor(label)
         embed = torch.FloatTensor(embed)
-
-        #return image[2], label # use blue channel only
+        
         return image, label, embed
     

@@ -1,15 +1,13 @@
 import os
 
-from PIL import Image
-
 import numpy as np
 import pandas as pd
 
+from PIL import Image
+
 import torch
 from torch.utils.data import Dataset
-from torchvision import datasets
 from torchvision.transforms import ToTensor, Resize
-
 from torchvision.io import read_image
 
 
@@ -55,5 +53,5 @@ class WoundImagePairsDataset(Dataset):
         label = torch.FloatTensor(label)
         embed = torch.FloatTensor(embed)
 
-        return image_i, image_j, image_k, label, embed
+        return (image_i, image_j, image_k, label, embed)
     
