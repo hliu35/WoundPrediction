@@ -1,5 +1,5 @@
 from ctypes.wintypes import RGB
-from classifier import loadClassifier
+from temporal_encoder import loadClassifier
 import os
 from PIL import Image
 import torchvision.transforms as transforms

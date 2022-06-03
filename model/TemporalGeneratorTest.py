@@ -3,8 +3,6 @@ from torch.autograd import Variable
 from torchvision.utils import save_image
 import csv
 
-from classifier import loadClassifier
-
 def LinearInter(EmbOne, EmbTwo, distEmb, distFin):
     inter = []
     for i, j in zip(EmbOne, EmbTwo):
@@ -55,22 +53,22 @@ for embed in embeddings:
   temp.insert(0,day)
   values.append(temp)
 
-MouseID = 'A8-1-R'
+MouseID = 'Y8-4-R'
 temp = GenPairs(values, MouseID)
 
 
-GenModel = torch.load("models/cgan_gen_16x.pth")
+GenModel = torch.load("models\cgan_gen_all_loss_0603.pth")
 GenModel.eval()
 
 
 for pair in temp:
-    dist = 3
+    dist = 1
     if (pair[1][0] + dist > 15):
         continue
     emb = LinearInter(pair[0][1:], pair[1][1:], pair[1][0] - pair[0][0], dist)
     emb = torch.stack([torch.Tensor(emb).cuda()])
     noise = Variable(torch.randn((1, 100)).cuda())
-    img_shape = (3, 256, 256)
+    img_shape = (3, 128, 128)
     img = GenModel(noise, emb).view(-1, *img_shape)
-    save_image(img.data, "images/" + MouseID + "-" + str(pair[0][0]) + "-" + str(pair[1][0]) +  ".png")
+    save_image(img.data, "images/" + MouseID + "-" + chr(pair[0][0] + 97) + "-" + chr(pair[1][0]+97) +  ".png")
 
