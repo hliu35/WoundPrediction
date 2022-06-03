@@ -56,8 +56,21 @@ D_UPDATE_THRESHOLD = 0.8
 
 
 
-def list_full_paths(directory):
+def list_full_paths(directory, mode="train"):
     full_list = [os.path.join(directory, file) for file in os.listdir(directory) if "png" in file]
+
+    # cherry pick test and validation images
+    test_imgs = [x for x in full_list if "Y8-4-L" in x or "A8-1-R" in x]
+    val_imgs = [x for x in full_list if "Y8-4-R" in x or "A8-1-L" in x]
+    train_imgs = set(full_list).difference(set(test_imgs))
+    train_imgs = train_imgs.difference(set(val_imgs))
+    train_imgs = list(train_imgs)
+
+    if mode=="train": full_list = train_imgs
+    elif mode=="val": full_list = val_imgs
+    else: full_list = test_imgs
+
+
     Ids = []
     for i in range(16):
         temp = full_list[i].split("/")[-1]
@@ -101,7 +114,7 @@ def list_full_paths(directory):
         combs[i] = comb
 
     combsList = [item for sublist in combs for item in sublist]
-    random.shuffle(combsList)
+    #random.shuffle(combsList)
     return combsList
 
 
@@ -219,7 +232,7 @@ def train_cgan(datapath, annotation_file, outpath="../tmp/"):
 
     # retrieve the list of image paths
     #img_list = list_full_paths(datapath)
-    train_imgs = list_full_paths_combs(datapath, "train")
+    train_imgs = list_full_paths(datapath, "train")
     #val_imgs = list_full_paths_combs(datapath, "val")
     #test_imgs = list_full_paths_combs(datapath, "test")
 
@@ -447,6 +460,4 @@ if __name__ == "__main__":
 
     # train/test the models
     #train_gan(datapath, annotation_file)
-    #train_cgan(datapath, annotation_file)
-    l = list_full_paths_combs(datapath, "train")
-    print(l)
+    train_cgan(datapath, annotation_file)
