@@ -34,9 +34,9 @@ from synth_labels import synthesize_onehot_labels as synth_onehot
 
 
 parser = argparse.ArgumentParser()
-parser.add_argument("--epochs", type=int, default=50, help="number of epochs of training")
+parser.add_argument("--epochs", type=int, default=20, help="number of epochs of training")
 parser.add_argument("--batch_size", type=int, default=8, help="size of the batches") # changed from 16 to 8
-parser.add_argument("--lr", type=float, default=0.0005, help="adam: learning rate") # changed from 0.0002
+parser.add_argument("--lr", type=float, default=0.0003, help="adam: learning rate") # changed from 0.0002
 parser.add_argument("--b1", type=float, default=0.5, help="adam: decay of first order momentum of gradient")
 parser.add_argument("--b2", type=float, default=0.999, help="adam: decay of first order momentum of gradient")
 parser.add_argument("--n_cpu", type=int, default=8, help="number of cpu threads to use during batch generation")
@@ -45,7 +45,7 @@ parser.add_argument("--img_size", type=int, default=256, help="size of each imag
 parser.add_argument('--n_classes', type=int, default=16, help='number of classes for dataset')
 #parser.add_argument('--n_classes', type=int, default=16, help='number of classes for dataset')
 parser.add_argument("--channels", type=int, default=3, help="number of image channels")
-parser.add_argument("--sample_interval", type=int, default=200, help="interval betwen image samples")
+parser.add_argument("--sample_interval", type=int, default=500, help="interval betwen image samples")
 opt = parser.parse_args()
 
 
@@ -120,6 +120,7 @@ def list_full_paths(directory, mode="train"):
 
 def train_gan(datapath, annotation_file, outpath="../tmp/"):
     ''' This is the script to train Vanilla GAN '''
+    ''' Some lines may be deprecated and need updates '''
     # create output folder
     if os.path.exists(outpath):
         shutil.rmtree(outpath)
@@ -220,7 +221,13 @@ def train_gan(datapath, annotation_file, outpath="../tmp/"):
 
 def train_cgan(datapath, annotation_file, outpath="../tmp/"):
     ''' This is the script to train Conditional GAN a.k.a. DCGAN '''
+
+    # Some interesting pages to read while waiting
+    #
     # https://www.reddit.com/r/MachineLearning/comments/5asl74/discussion_discriminator_converging_to_0_loss_in/
+    # https://ai.stackexchange.com/questions/8885/why-is-the-variational-auto-encoders-output-blurred-while-gans-output-is-crisp
+    #
+    # These will help you very much
 
     C = opt.n_classes
     if C not in [4, 16]: raise NotImplementedError("Check n_classes in arguments")
