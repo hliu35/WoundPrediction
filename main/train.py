@@ -442,4 +442,6 @@ if __name__ == "__main__":
 
     # train/test the models
     #train_gan(datapath, annotation_file)
-    train_cgan(datapath, annotation_file)
+    #train_cgan(datapath, annotation_file)
+    l = list_full_paths_combs(datapath, "train")
+    print(l)
