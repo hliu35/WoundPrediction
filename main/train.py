@@ -58,46 +58,51 @@ D_UPDATE_THRESHOLD = 0.8
 
 def list_full_paths(directory):
     full_list = [os.path.join(directory, file) for file in os.listdir(directory) if "png" in file]
-    random.shuffle(full_list)
-    #test_list = [x for x in full_list if "Day 15" in x] # test with only day 15 data
-    return full_list
-    #return test_list
-
-def list_full_paths_combs(directory, mode="train"):
-
-    full_list = [os.path.join(directory, file) for file in os.listdir(directory) if "png" in file]
-    test_imgs = [x for x in full_list if "Y8-4-L" in x or "A8-1-R" in x]
-    val_imgs = [x for x in full_list if "Y8-4-R" in x or "A8-1-L" in x]
-    train_imgs = set(full_list).difference(set(test_imgs))
-    train_imgs = train_imgs.difference(set(val_imgs))
-    train_imgs = list(train_imgs)
-
-    if mode=="train": full_list = train_imgs
-    elif mode=="val": full_list = val_imgs
-    else: full_list = test_imgs
-
     Ids = []
     for i in range(16):
         temp = full_list[i].split("/")[-1]
-        Ids.append(temp.split("_")[1])
+        if("aug" in temp):
+            Ids.append(temp.split("_")[2])
+        else:
+            Ids.append(temp.split("_")[1])
 
     seperated_Ids = []
+    final_aug_list = []
     for id in Ids:
         id_list = []
+        aug_Ids = []
         for png in full_list:
             if id in png:
-                id_list.append(png)
+                if "aug_Day" in png:
+                    aug_Ids.append(png)
+                else:
+                    id_list.append(png)
+
+        id_list.sort()
         for i in range(6):
             id_list.append(id_list.pop(1))
         seperated_Ids.append(id_list)
+        final_aug_list.append(aug_Ids)
 
     combs = []
     for i in range(16):
-        combs.append([comb for comb in combinations(seperated_Ids[i], 3)])
+        combs.append([list(comb) for comb in combinations(seperated_Ids[i], 3)])
+    for i in range(len(final_aug_list)):
+        aug = final_aug_list[i]
+        comb = combs[i]
+        for k in aug:
+            day = k.split(" ")[1]
+            for c in comb:
+                for j in range(3):
+                    if day == c[j].split(" ")[1] and not "aug_Day" in c[j]:
+                        temp = c
+                        temp[j] = k
+                        comb.append(temp)
+        combs[i] = comb
 
-    combs_list = [item for sublist in combs for item in sublist]
-    random.shuffle(combs_list)
-    return combs_list
+    combsList = [item for sublist in combs for item in sublist]
+    random.shuffle(combsList)
+    return combsList
 
 
 def train_gan(datapath, annotation_file, outpath="../tmp/"):
