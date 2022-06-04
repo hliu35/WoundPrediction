@@ -114,7 +114,7 @@ def list_full_paths(directory, mode="train"):
         combs[i] = comb
 
     combsList = [item for sublist in combs for item in sublist]
-    while i < r:
+    while i < len(combsList):
         temp = combsList[i][0].split(" ")[1]
         temp = temp.split("_")[0]
         #Change the value below to change which I values to not use
