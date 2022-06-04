@@ -114,6 +114,15 @@ def list_full_paths(directory, mode="train"):
         combs[i] = comb
 
     combsList = [item for sublist in combs for item in sublist]
+    while i < r:
+        temp = combsList[i][0].split(" ")[1]
+        temp = temp.split("_")[0]
+        #Change the value below to change which I values to not use
+        if int(temp) > 7:
+            combsList.pop(i)
+            i = i - 1
+            r = r - 1
+        i = i + 1
     #random.shuffle(combsList)
     return combsList
 
