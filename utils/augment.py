@@ -28,7 +28,8 @@ def augment(image):
     new_image = image.copy()
     degrees = [0, 90, 180, 270]
 
-    mode = np.random.randint(low=0, high=3)
+    #mode = np.random.randint(low=0, high=3)
+    mode = np.random.randint(low=0, high=2) # brightness augmentation disabled
     if mode == 0: # rotate
         deg = np.random.choice(degrees)
         return new_image.rotate(deg)
