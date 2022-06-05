@@ -45,15 +45,14 @@ parser.add_argument("--img_size", type=int, default=256, help="size of each imag
 parser.add_argument('--n_classes', type=int, default=16, help='number of classes for dataset')
 #parser.add_argument('--n_classes', type=int, default=16, help='number of classes for dataset')
 parser.add_argument("--channels", type=int, default=3, help="number of image channels")
-parser.add_argument("--sample_interval", type=int, default=500, help="interval betwen image samples")
+parser.add_argument("--sample_interval", type=int, default=250, help="interval betwen image samples")
 opt = parser.parse_args()
 
 
 IMG_SHAPE = (opt.channels, opt.img_size, opt.img_size)
-CUDA = True if torch.cuda.is_available() else False
+DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
 CLIP = 0.5
-D_UPDATE_THRESHOLD = 0.8
-
+D_UPDATE_THRESHOLD = 8.0
 
 
 def list_full_paths(directory, mode="train"):
@@ -241,6 +240,10 @@ def train_cgan(datapath, annotation_file, outpath="../tmp/"):
 
     C = opt.n_classes
     if C not in [4, 16]: raise NotImplementedError("Check n_classes in arguments")
+    
+    # normalizatoin parameters
+    MEAN = torch.tensor([0.485, 0.456, 0.406])
+    STD = torch.tensor([0.229, 0.224, 0.225])
 
     # create output folder
     if os.path.exists(outpath):
@@ -290,19 +293,24 @@ def train_cgan(datapath, annotation_file, outpath="../tmp/"):
     #discriminator.apply(weights_init_normal)
 
     
-    if CUDA:
-        generator.cuda()
-        discriminator.cuda()
-        temporal_encoder.cuda()
-        temporal_classifier.cuda()
+    print("Using %s.\n"%DEVICE)
+    generator = generator.to(DEVICE)
+    discriminator = discriminator.to(DEVICE)
+    temporal_encoder = temporal_encoder.to(DEVICE)
+    temporal_classifier = temporal_classifier.to(DEVICE)
 
-        adversarial_loss.cuda()
-        embedding_loss.cuda()
-        temporal_loss.cuda()
+    adversarial_loss = adversarial_loss.to(DEVICE)
+    embedding_loss = embedding_loss.to(DEVICE)
+    temporal_loss = temporal_loss.to(DEVICE)
+
+    MEAN = MEAN.to(DEVICE)
+    STD = STD.to(DEVICE)
 
 
     # Configure data loaders and compose transform functions
-    TRANSFORMS = T.Compose([T.ToTensor(), T.Resize((opt.img_size, opt.img_size))])
+    TRANSFORMS = T.Compose([T.ToTensor(), \
+        T.Resize((opt.img_size, opt.img_size)), \
+            T.Normalize(MEAN, STD)]) # test with normalization
 
 
     train_dataset = WoundImagePairsDataset(train_imgs, annotation_file, transform = TRANSFORMS)
@@ -321,7 +329,7 @@ def train_cgan(datapath, annotation_file, outpath="../tmp/"):
 
     # densenet image preparation
     DENSENET_IMAGE_SHAPE = 244
-    transform_densenet = T.Compose([T.Resize(DENSENET_IMAGE_SHAPE), T.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])])
+    transform_densenet = T.Compose([T.Resize(DENSENET_IMAGE_SHAPE), T.Normalize(MEAN, STD)])
 
 
     batches_done=0
@@ -378,7 +386,7 @@ def train_cgan(datapath, annotation_file, outpath="../tmp/"):
             g_loss = adversarial_loss(prediction, valid)
 
             g_loss.backward()
-            torch.nn.utils.clip_grad_norm_(generator.parameters(), CLIP) # notice the trailing _ representing in-place
+            #torch.nn.utils.clip_grad_norm_(generator.parameters(), CLIP) # notice the trailing _ representing in-place
             optimizer_G.step()
 
 
@@ -435,10 +443,10 @@ def train_cgan(datapath, annotation_file, outpath="../tmp/"):
             
             # conditional update D
             #if d_loss >= D_UPDATE_THRESHOLD:
-            if g_loss <= 10.0:   # TEST
-                d_loss.backward()
-                torch.nn.utils.clip_grad_norm_(discriminator.parameters(), CLIP) # notice the trailing _ representing in-place
-                optimizer_D.step()
+            #if g_loss <= D_UPDATE_THRESHOLD:   # TEST
+            d_loss.backward()
+            #torch.nn.utils.clip_grad_norm_(discriminator.parameters(), CLIP) # notice the trailing _ representing in-place
+            optimizer_D.step()
 
             
             # print results
@@ -453,10 +461,14 @@ def train_cgan(datapath, annotation_file, outpath="../tmp/"):
                 # y_disp was defined at the very beginning of training
                 #print(y_disp)
                 gen_imgs = generator(noise, y_disp).view(-1, *IMG_SHAPE)
-                save_image(gen_imgs.data, os.path.join(outpath, '%d-%d.png' % (epoch,batches_done)), nrow=C//4, normalize=True) # nrow = number of img per row, original C, current C//4
+
+                # reverse normalization (test)
+                gen_imgs = gen_imgs * STD[None, :, None, None] + MEAN[None, :, None, None]
+
+                save_image(gen_imgs.data, os.path.join(outpath, '%d-%d.png' % (epoch,batches_done)), nrow=C//8, normalize=True) # nrow = number of img per row, original C, current C//4
                 #save_image(imgs_k.data, os.path.join(outpath, '%d-%d.png' % (epoch,batches_done)), nrow=C//2, normalize=True) # real data
 
-        if epoch % 10 == 0:
+        if (epoch+1) % 10 == 0:
             torch.save(generator, os.path.join(outpath, "cgan_gen.pth"))
 
 
