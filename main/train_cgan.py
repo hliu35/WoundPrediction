@@ -22,7 +22,7 @@ import torch.nn.functional as F
 
 
 
-import gan, dcgan
+import dcgan
 import temporal_encoder as TE
 import temporal_classifier as TC
 
@@ -56,7 +56,15 @@ D_UPDATE_THRESHOLD = 8.0
 
 
 def list_full_paths(directory, mode="train"):
-    full_list = [os.path.join(directory, file) for file in os.listdir(directory) if "png" in file]
+    res = []
+
+    def pack_filename(idx, mice):
+        original = "Day %d_%s.png"%(idx, mice)
+        augmented = "aug_Day %d_%s.png"%(idx, mice)
+        return original, augmented
+    
+    #full_list = [os.path.join(directory, file) for file in os.listdir(directory) if "png" in file]
+    full_list = [x for x in os.listdir(directory) if "png" in x]
 
     # cherry pick test and validation images
     test_imgs = [x for x in full_list if "Y8-4-L" in x or "A8-1-R" in x]
@@ -69,62 +77,98 @@ def list_full_paths(directory, mode="train"):
     elif mode=="val": full_list = val_imgs
     else: full_list = test_imgs
 
+    mouse_ids = set([x.split('_')[-1].split('.')[0] for x in full_list])
+    print(mouse_ids)
 
-    Ids = []
-    for i in range(16):
-        temp = full_list[i].split("/")[-1]
-        if("aug" in temp):
-            Ids.append(temp.split("_")[2])
-        else:
-            Ids.append(temp.split("_")[1])
+    for mice in mouse_ids:
+        i = 0
+        for k in range(15, 1, -1):
+            file_k, file_k_aug = pack_filename(k, mice)
+            if file_k not in full_list: continue
 
-    seperated_Ids = []
-    final_aug_list = []
-    for id in Ids:
-        id_list = []
-        aug_Ids = []
-        for png in full_list:
-            if id in png:
-                if "aug_Day" in png:
-                    aug_Ids.append(png)
-                else:
-                    id_list.append(png)
+            j = k
+            while j > 1:
+                j -= 1
+                file_j, file_j_aug = pack_filename(j, mice)
+                if file_j not in full_list: continue
 
-        id_list.sort()
-        for i in range(6):
-            id_list.append(id_list.pop(1))
-        seperated_Ids.append(id_list)
-        final_aug_list.append(aug_Ids)
+                #for i in range(j):
+                for i in range(min(8, j)):
+                    file_i, file_i_aug = pack_filename(i, mice)
 
-    combs = []
-    for i in range(16):
-        combs.append([list(comb) for comb in combinations(seperated_Ids[i], 3)])
-    for i in range(len(final_aug_list)):
-        aug = final_aug_list[i]
-        comb = combs[i]
-        for k in aug:
-            day = k.split(" ")[1]
-            for c in comb:
-                for j in range(3):
-                    if day == c[j].split(" ")[1] and not "aug_Day" in c[j]:
-                        temp = c
-                        temp[j] = k
-                        comb.append(temp)
-        combs[i] = comb
+                    if file_i not in full_list: continue
 
-    combsList = [item for sublist in combs for item in sublist]
-    r = len(combsList)
-    while i < r:
-        temp = combsList[i][0].split(" ")[1]
-        temp = temp.split("_")[0]
-        #Change the value below to change which I values to not use
-        if int(temp) > 7:
-            combsList.pop(i)
-            i = i - 1
-            r = r - 1
-        i = i + 1
-    #random.shuffle(combsList)
-    return combsList
+                    path_i, path_j, path_k = os.path.join(directory, file_i), os.path.join(directory, file_j), os.path.join(directory, file_k)
+                    path_ia, path_ja, path_ka = os.path.join(directory, file_i_aug), os.path.join(directory, file_j_aug), os.path.join(directory, file_k_aug)
+
+                    A = [x for x in [path_i, path_ia] if os.path.exists(x)]
+                    B = [x for x in [path_j, path_ja] if os.path.exists(x)]
+                    C = [x for x in [path_k, path_ka] if os.path.exists(x)]
+                    grid1 = np.array(A)
+                    grid2 = np.array(B)
+                    grid3 = np.array(C)
+
+                    grid_3d = np.meshgrid(grid1, grid2, grid3)
+                    combs = np.array(grid_3d).T.reshape(-1,3)
+                    res.extend(combs.tolist())
+
+    return res
+
+    # Ids = []
+    # for i in range(16):
+    #     temp = full_list[i].split("/")[-1]
+    #     if("aug" in temp):
+    #         Ids.append(temp.split("_")[2])
+    #     else:
+    #         Ids.append(temp.split("_")[1])
+
+    # seperated_Ids = []
+    # final_aug_list = []
+    # for id in Ids:
+    #     id_list = []
+    #     aug_Ids = []
+    #     for png in full_list:
+    #         if id in png:
+    #             if "aug_Day" in png:
+    #                 aug_Ids.append(png)
+    #             else:
+    #                 id_list.append(png)
+
+    #     id_list.sort()
+    #     for i in range(6):
+    #         id_list.append(id_list.pop(1))
+    #     seperated_Ids.append(id_list)
+    #     final_aug_list.append(aug_Ids)
+
+    # combs = []
+    # for i in range(16):
+    #     combs.append([list(comb) for comb in combinations(seperated_Ids[i], 3)])
+    # for i in range(len(final_aug_list)):
+    #     aug = final_aug_list[i]
+    #     comb = combs[i]
+    #     for k in aug:
+    #         day = k.split(" ")[1]
+    #         for c in comb:
+    #             for j in range(3):
+    #                 if day == c[j].split(" ")[1] and not "aug_Day" in c[j]:
+    #                     temp = c
+    #                     temp[j] = k
+    #                     comb.append(temp)
+    #     combs[i] = comb
+
+    # combsList = [item for sublist in combs for item in sublist]
+    # r = len(combsList)
+    # while i < r:
+    #     temp = combsList[i][0].split(" ")[1]
+    #     temp = temp.split("_")[0]
+    #     #Change the value below to change which I values to not use
+    #     if int(temp) > 7:
+    #         combsList.pop(i)
+    #         i = i - 1
+    #         r = r - 1
+    #     i = i + 1
+    # #random.shuffle(combsList)
+    # return combsList
 
 
 
@@ -373,8 +417,8 @@ def train_cgan(datapath, annotation_file, outpath="../tmp/"):
                 #print(y_disp)
                 gen_imgs = generator(noise, y_disp).view(-1, *IMG_SHAPE)
 
-                # reverse normalization (test)
-                gen_imgs = (gen_imgs - 0.5) * 2
+                # shift the range back to [-1, 1]
+                gen_imgs = unshift(gen_imgs)
 
                 save_image(gen_imgs.data, os.path.join(outpath, '%d-%d.png' % (epoch,batches_done)), nrow=C//8, normalize=True, value_range=(-1, 1)) # nrow = number of img per row, original C, current C//4
                 #save_image(imgs_k.data, os.path.join(outpath, '%d-%d.png' % (epoch,batches_done)), nrow=C//2, normalize=True, value_range=(-1, 1)) # real data
@@ -398,5 +442,8 @@ if __name__ == "__main__":
     #annotation_file = "../data_augmented/augmented_labels.csv"
     annotation_file = "../data_augmented/augmented_data.csv"
 
+    l = list_full_paths(datapath, mode="train")
+    print(len(l))
+
     # train/test the models
-    train_cgan(datapath, annotation_file)
+    #train_cgan(datapath, annotation_file)
