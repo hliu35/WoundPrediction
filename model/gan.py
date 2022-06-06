@@ -42,7 +42,9 @@ class Generator(nn.Module):
             *block(512, 1024, True), # test norm false
             #*block(1024, 2048), # test 
             nn.Linear(1024, int(np.prod(self.img_shape))), # was 1024 now 2048
-            nn.Tanh()
+            #https://stackoverflow.com/questions/44525338/use-of-tanh-in-the-output-layer-of-generator-network
+            #nn.Tanh()  # Tanh only if image pixels are in range [-1, 1] (a.k.a. transforms.Normalize())
+            nn.Sigmoid()
         )
 
     def forward(self, z):
