@@ -76,13 +76,6 @@ def test_cgan(datapath, annotation_file, outpath="../test_results/"):
         # y_disp was defined at the very beginning of training
         gen_imgs = generator(noise, y_disp).view(-1, *IMG_SHAPE)
         
-        # shift the range back to [-1, 1]
-        gen_imgs = unshift(gen_imgs)
-        imgs_k = unshift(imgs_k)
-
-        gen_imgs = gen_imgs * 0.5 + 0.5
-        imgs_k = imgs_k * 0.5 + 0.5
-
         save_image(gen_imgs.data, os.path.join(outpath, 'generated_a8-1-r-day2to15.png'), nrow=7, normalize=False) 
         save_image(imgs_k.data, os.path.join(outpath, 'true_a8-1-r-day2to15.png'), nrow=7, normalize=False) # real data
         break
