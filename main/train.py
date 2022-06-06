@@ -242,8 +242,8 @@ def train_cgan(datapath, annotation_file, outpath="../tmp/"):
     if C not in [4, 16]: raise NotImplementedError("Check n_classes in arguments")
     
     # normalizatoin parameters
-    MEAN = torch.tensor([0.485, 0.456, 0.406])
-    STD = torch.tensor([0.229, 0.224, 0.225])
+    MEAN = torch.tensor([0.5, 0.5, 0.5])
+    STD = torch.tensor([0.5, 0.5, 0.5])
 
     # create output folder
     if os.path.exists(outpath):
@@ -329,13 +329,16 @@ def train_cgan(datapath, annotation_file, outpath="../tmp/"):
 
     # densenet image preparation
     DENSENET_IMAGE_SHAPE = 244
-    transform_densenet = T.Compose([T.Resize(DENSENET_IMAGE_SHAPE), T.Normalize(MEAN, STD)])
+    transform_densenet = T.Compose([T.Resize(DENSENET_IMAGE_SHAPE), T.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])])
 
 
     batches_done=0
+    d_loss, g_loss = 0, 0
+
     for epoch in range(opt.epochs):
 
         for i, (imgs_i, imgs_j, imgs_k, Y4, Y16) in enumerate(train_dataloader):
+
             # training parameters
             B = opt.batch_size
 
@@ -379,11 +382,12 @@ def train_cgan(datapath, annotation_file, outpath="../tmp/"):
 
             # Generate a batch of images
             #gen_imgs = generator(noise, gen_y)
+            gen_imgs = generator(noise, gen_y).view(B, *IMG_SHAPE)
 
             # Loss measures generator's ability to fool the discriminator
-            gen_imgs = generator(noise, gen_y).view(B, *IMG_SHAPE)
             prediction = discriminator(gen_imgs, gen_y).squeeze()
             g_loss = adversarial_loss(prediction, valid)
+
 
             g_loss.backward()
             #torch.nn.utils.clip_grad_norm_(generator.parameters(), CLIP) # notice the trailing _ representing in-place
@@ -463,10 +467,10 @@ def train_cgan(datapath, annotation_file, outpath="../tmp/"):
                 gen_imgs = generator(noise, y_disp).view(-1, *IMG_SHAPE)
 
                 # reverse normalization (test)
-                gen_imgs = gen_imgs * STD[None, :, None, None] + MEAN[None, :, None, None]
+                gen_imgs = (gen_imgs - 0.5) * 2
 
-                save_image(gen_imgs.data, os.path.join(outpath, '%d-%d.png' % (epoch,batches_done)), nrow=C//8, normalize=True) # nrow = number of img per row, original C, current C//4
-                #save_image(imgs_k.data, os.path.join(outpath, '%d-%d.png' % (epoch,batches_done)), nrow=C//2, normalize=True) # real data
+                save_image(gen_imgs.data, os.path.join(outpath, '%d-%d.png' % (epoch,batches_done)), nrow=C//8, normalize=True, value_range=(-1, 1)) # nrow = number of img per row, original C, current C//4
+                #save_image(imgs_k.data, os.path.join(outpath, '%d-%d.png' % (epoch,batches_done)), nrow=C//2, normalize=True, value_range=(-1, 1)) # real data
 
         if (epoch+1) % 10 == 0:
             torch.save(generator, os.path.join(outpath, "cgan_gen.pth"))
