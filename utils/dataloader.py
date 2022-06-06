@@ -11,6 +11,10 @@ from torchvision.transforms import ToTensor, Resize
 from torchvision.io import read_image
 
 
+def shift(normalized_imgs):
+    return normalized_imgs / 2 + 0.5
+
+
 class WoundImagePairsDataset(Dataset):
     def __init__(self, combs, annotations_file, transform=None, target_transform=None):
         self.img_list = combs
@@ -53,5 +57,6 @@ class WoundImagePairsDataset(Dataset):
         label = torch.FloatTensor(label)
         embed = torch.FloatTensor(embed)
 
-        return (image_i, image_j, image_k, label, embed)
+        #return (image_i, image_j, image_k, label, embed)
+        return (shift(image_i), shift(image_j), shift(image_k), label, embed)
     
