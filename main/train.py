@@ -127,103 +127,10 @@ def list_full_paths(directory, mode="train"):
     return combsList
 
 
-def train_gan(datapath, annotation_file, outpath="../tmp/"):
-    ''' This is the script to train Vanilla GAN '''
-    ''' Some lines may be deprecated and need updates '''
-    # create output folder
-    if os.path.exists(outpath):
-        shutil.rmtree(outpath)
-    os.mkdir(outpath)
 
-    # retrieve the list of image paths
-    img_list = list_full_paths(datapath)
-    #print(img_list)
-    #exit()
+def unshift(sigmoid_output):
+    return (sigmoid_output - 0.5) * 2
 
-    # Loss function
-    adversarial_loss = torch.nn.BCELoss()
-
-    # Initialize generator and discriminator
-    generator = gan.Generator(IMG_SHAPE, opt.latent_dim)
-    discriminator = gan.Discriminator(IMG_SHAPE)
-
-    if CUDA:
-        generator.cuda()
-        discriminator.cuda()
-        adversarial_loss.cuda()
-
-    # Configure data loader and compose transform functions
-    TRANSFORMS = T.Compose([T.ToTensor(), T.Resize((opt.img_size, opt.img_size))])
-    #TRANSFORMS = T.Compose([T.Grayscale(num_output_channels=1), T.ToTensor(), T.Resize((opt.img_size, opt.img_size))])
-    dataset = WoundImageDataset(img_list, \
-        annotation_file, \
-        transform = TRANSFORMS) # can also customize transform
-
-    dataloader = DataLoader(dataset, batch_size=opt.batch_size, shuffle=True)
-
-    # Optimizers
-    optimizer_G = torch.optim.Adam(generator.parameters(), lr=opt.lr, betas=(opt.b1, opt.b2))
-    optimizer_D = torch.optim.Adam(discriminator.parameters(), lr=opt.lr, betas=(opt.b1, opt.b2))
-
-    Tensor = torch.cuda.FloatTensor if CUDA else torch.FloatTensor
-
-    # ----------
-    #  Training
-    # ----------
-
-    for epoch in range(opt.epochs):
-        for i, (imgs, _) in enumerate(dataloader):
-
-            # SKIP BATCH SIZE OF 1
-            if imgs.shape[0] < opt.batch_size: continue
-
-            # Adversarial ground truths
-            valid = Variable(Tensor(imgs.size(0), 1).fill_(1.0), requires_grad=False)
-            fake = Variable(Tensor(imgs.size(0), 1).fill_(0.0), requires_grad=False)
-
-            # Configure input
-            real_imgs = Variable(imgs.type(Tensor))
-
-            # -----------------
-            #  Train Generator
-            # -----------------
-
-            optimizer_G.zero_grad()
-
-            # Sample noise as generator input
-            z = Variable(Tensor(np.random.normal(0, 100, (imgs.shape[0], opt.latent_dim))))
-
-            # Generate a batch of images
-            gen_imgs = generator(z)
-
-            # Loss measures generator's ability to fool the discriminator
-            g_loss = adversarial_loss(discriminator(gen_imgs), valid)
-            
-            g_loss.backward()
-            optimizer_G.step()
-
-            # ---------------------
-            #  Train Discriminator
-            # ---------------------
-
-            optimizer_D.zero_grad()
-
-            # Measure discriminator's ability to classify real from generated samples
-            real_loss = adversarial_loss(discriminator(real_imgs), valid)
-            fake_loss = adversarial_loss(discriminator(gen_imgs.detach()), fake)
-            d_loss = (real_loss + fake_loss) / 2
-
-            d_loss.backward()
-            optimizer_D.step()
-
-            print(
-                "[Epoch %d/%d] [Batch %d/%d] [D loss: %f] [G loss: %f]"
-                % (epoch, opt.epochs, i, len(dataloader), d_loss.item(), g_loss.item())
-            )
-
-            batches_done = epoch * len(dataloader) + i
-            if batches_done % opt.sample_interval == 0:
-                save_image(gen_imgs.data[:25], os.path.join(outpath, "%d.png" % batches_done), nrow=4, normalize=True)
 
 
 
@@ -492,5 +399,4 @@ if __name__ == "__main__":
     annotation_file = "../data_augmented/augmented_data.csv"
 
     # train/test the models
-    #train_gan(datapath, annotation_file)
     train_cgan(datapath, annotation_file)
