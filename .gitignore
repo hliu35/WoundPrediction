@@ -362,5 +362,7 @@ tmp
 **/data_augmented/*
 data_augmented
 
+data_normalized
+
 
 lightning_logs
