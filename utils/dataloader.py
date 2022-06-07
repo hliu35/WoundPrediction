@@ -12,29 +12,6 @@ from torchvision.io import read_image
 
 
 
-def normalize(cropped_img):
-    img = np.array(cropped_img).astype(float)
-    mask = np.any(img != [0, 0, 0], axis=-1)
-
-    for c in range(3):
-        center = img[mask, c].copy()
-
-        mu = np.mean(center)
-        sigma = np.std(center)
-
-        img[:, :, c][mask] -= mu
-        img[:, :, c][mask] /= sigma
-
-        new_min = np.min(img[mask, c])
-        new_max = np.max(img[mask, c])
-
-        img[:, :, c][mask] -= new_min
-        img[:, :, c][mask] /= (new_max-new_min)
-        img[:, :, c][mask] *= 255
-
-    return img.astype(np.uint8)
-
-
 
 class WoundImagePairsDataset(Dataset):
     def __init__(self, combs, annotations_file, transform=None, target_transform=None):
@@ -56,10 +33,6 @@ class WoundImagePairsDataset(Dataset):
         image_i = Image.open(comb[0])
         image_j = Image.open(comb[1])
         image_k = Image.open(comb[2])
-
-        image_i = normalize(image_i)
-        image_j = normalize(image_j)
-        image_k = normalize(image_k)
 
         #Print images for testing
         #image_i.show()
