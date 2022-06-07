@@ -17,7 +17,7 @@ import torch
 
 
 import dcgan
-from train_cgan import list_full_paths, unshift
+from train_cgan import list_full_paths
 
 #from dataloader import WoundImageDataset
 from dataloader import WoundImagePairsDataset # new dataset with day i and j
@@ -60,7 +60,7 @@ def test_cgan(datapath, annotation_file, outpath="../test_results/"):
 
 
     # Configure data loaders and compose transform functions
-    TRANSFORMS = T.Compose([T.ToTensor(), T.Resize((128, 128)), T.Normalize(0.5, 0.5)])
+    TRANSFORMS = T.Compose([T.ToTensor(), T.Resize((128, 128))])
 
     test_dataset = WoundImagePairsDataset(test_imgs, annotation_file, transform = TRANSFORMS)
     test_dataloader = DataLoader(test_dataset, batch_size=B, shuffle=False)
