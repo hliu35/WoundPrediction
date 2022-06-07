@@ -11,13 +11,6 @@ from torchvision.transforms import ToTensor, Resize
 from torchvision.io import read_image
 
 
-def shift(normalized_imgs):
-    return normalized_imgs / 2 + 0.5
-
-def unshift(sigmoid_output):
-    return (sigmoid_output - 0.5) * 2
-
-
 
 def normalize(cropped_img):
     img = np.array(cropped_img).astype(float)
@@ -90,5 +83,4 @@ class WoundImagePairsDataset(Dataset):
         embed = torch.FloatTensor(embed)
 
         return (image_i, image_j, image_k, label, embed)
-        #return (shift(image_i), shift(image_j), shift(image_k), label, embed)
     
