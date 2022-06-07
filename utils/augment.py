@@ -6,6 +6,8 @@ import numpy as np
 import pandas as pd
 from PIL import Image, ImageOps, ImageEnhance
 
+import time
+
 # Set Random Seed
 np.random.seed(10)
 
@@ -38,14 +40,19 @@ def normalize(cropped_img):
         img[:, :, c][mask] -= mu
         img[:, :, c][mask] /= sigma
 
-        new_min = np.min(img[:, :, c][mask])
-        new_max = np.max(img[:, :, c][mask])
+        #new_min = np.min(img[:, :, c][mask])
+        #new_max = np.max(img[:, :, c][mask])
+        new_min = np.percentile(img[:, :, c][mask], q=1.0)
+        new_max = np.percentile(img[:, :, c][mask], q=99)
 
         img[:, :, c][mask] -= new_min
         img[:, :, c][mask] /= (new_max-new_min)
         img[:, :, c][mask] *= 255.0
+    
+    img = np.clip(img, 0, 255)
 
-    return Image.fromarray(img.astype(np.uint8))
+    new_img = Image.fromarray(img.astype(np.uint8))    
+    return new_img
 
 
 
