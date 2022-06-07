@@ -414,8 +414,8 @@ def train_cgan(datapath, annotation_file, outpath="../tmp/"):
                 #print(y_disp)
                 gen_imgs = generator(noise, y_disp).view(-1, *IMG_SHAPE)
 
-                #save_image(gen_imgs.data, os.path.join(outpath, '%d-%d.png' % (epoch,batches_done)), nrow=C//8, normalize=False) # nrow = number of img per row, original C, current C//4
-                save_image(imgs_k.data, os.path.join(outpath, '%d-%d.png' % (epoch,batches_done)), nrow=C//2, normalize=False) # real data
+                save_image(gen_imgs.data, os.path.join(outpath, '%d-%d.png' % (epoch,batches_done)), nrow=C//8, normalize=False) # nrow = number of img per row, original C, current C//4
+                #save_image(imgs_k.data, os.path.join(outpath, '%d-%d.png' % (epoch,batches_done)), nrow=C//2, normalize=False) # real data
 
         if (epoch+1) % 10 == 0:
             torch.save(generator, os.path.join(outpath, "cgan_gen.pth"))
