@@ -27,7 +27,7 @@ import temporal_encoder as TE
 import temporal_classifier as TC
 
 #from dataloader import WoundImageDataset
-from dataloader import WoundImagePairsDataset # new dataset with day i and j
+from dataloader import unshift, WoundImagePairsDataset # new dataset with day i and j
 from synth_labels import synthesize_softmax_labels as synth_softmax
 from synth_labels import synthesize_onehot_labels as synth_onehot
 
@@ -172,11 +172,6 @@ def list_full_paths(directory, mode="train"):
 
 
 
-def unshift(sigmoid_output):
-    return (sigmoid_output - 0.5) * 2
-
-
-
 
 
 def train_cgan(datapath, annotation_file, outpath="../tmp/"):
@@ -192,9 +187,12 @@ def train_cgan(datapath, annotation_file, outpath="../tmp/"):
     C = opt.n_classes
     if C not in [4, 16]: raise NotImplementedError("Check n_classes in arguments")
     
-    # normalizatoin parameters
+    # normalization parameters
     MEAN = torch.tensor([0.5, 0.5, 0.5])
     STD = torch.tensor([0.5, 0.5, 0.5])
+    #MEAN = torch.tensor([0.441, 0.318, 0.253])
+    #STD = torch.tensor([0.291, 0.209, 0.170])
+
 
     # create output folder
     if os.path.exists(outpath):
@@ -204,8 +202,8 @@ def train_cgan(datapath, annotation_file, outpath="../tmp/"):
     # retrieve the list of image paths
     #img_list = list_full_paths(datapath)
     train_imgs = list_full_paths(datapath, "train")
-    #val_imgs = list_full_paths_combs(datapath, "val")
-    #test_imgs = list_full_paths_combs(datapath, "test")
+    #val_imgs = list_full_paths(datapath, "val")
+    #test_imgs = list_full_paths(datapath, "test")
 
 
     # Loss functions for part 1, 2, and 3
@@ -260,8 +258,7 @@ def train_cgan(datapath, annotation_file, outpath="../tmp/"):
 
     # Configure data loaders and compose transform functions
     TRANSFORMS = T.Compose([T.ToTensor(), \
-        T.Resize((opt.img_size, opt.img_size)), \
-            T.Normalize(MEAN, STD)]) # test with normalization
+        T.Resize((opt.img_size, opt.img_size))]) # test with normalization
 
 
     train_dataset = WoundImagePairsDataset(train_imgs, annotation_file, transform = TRANSFORMS)
@@ -417,11 +414,8 @@ def train_cgan(datapath, annotation_file, outpath="../tmp/"):
                 #print(y_disp)
                 gen_imgs = generator(noise, y_disp).view(-1, *IMG_SHAPE)
 
-                # shift the range back to [-1, 1]
-                gen_imgs = unshift(gen_imgs)
-
-                save_image(gen_imgs.data, os.path.join(outpath, '%d-%d.png' % (epoch,batches_done)), nrow=C//8, normalize=True, value_range=(-1, 1)) # nrow = number of img per row, original C, current C//4
-                #save_image(imgs_k.data, os.path.join(outpath, '%d-%d.png' % (epoch,batches_done)), nrow=C//2, normalize=True, value_range=(-1, 1)) # real data
+                #save_image(gen_imgs.data, os.path.join(outpath, '%d-%d.png' % (epoch,batches_done)), nrow=C//8, normalize=False) # nrow = number of img per row, original C, current C//4
+                save_image(imgs_k.data, os.path.join(outpath, '%d-%d.png' % (epoch,batches_done)), nrow=C//2, normalize=False) # real data
 
         if (epoch+1) % 10 == 0:
             torch.save(generator, os.path.join(outpath, "cgan_gen.pth"))
@@ -442,8 +436,8 @@ if __name__ == "__main__":
     #annotation_file = "../data_augmented/augmented_labels.csv"
     annotation_file = "../data_augmented/augmented_data.csv"
 
-    l = list_full_paths(datapath, mode="train")
-    print(len(l))
+    #l = list_full_paths(datapath, mode="train")
+    #print(len(l))
 
     # train/test the models
-    #train_cgan(datapath, annotation_file)
+    train_cgan(datapath, annotation_file)
