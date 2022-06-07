@@ -1,3 +1,4 @@
+from multiprocessing.sharedctypes import Value
 import os, sys
 import shutil
 
@@ -23,6 +24,30 @@ def from_string(embedding_str):
     return embedding_arr
 
 
+def normalize(cropped_img):
+    img = np.array(cropped_img).astype(float)
+    assert(img.shape[2] == 3)
+    mask = np.any(img != [0, 0, 0], axis=-1)
+
+    for c in range(3):
+        center = (img[:, :, c][mask]).copy()
+
+        mu = np.mean(center)
+        sigma = np.std(center)
+
+        img[:, :, c][mask] -= mu
+        img[:, :, c][mask] /= sigma
+
+        new_min = np.min(img[:, :, c][mask])
+        new_max = np.max(img[:, :, c][mask])
+
+        img[:, :, c][mask] -= new_min
+        img[:, :, c][mask] /= (new_max-new_min)
+        img[:, :, c][mask] *= 255.0
+
+    return Image.fromarray(img.astype(np.uint8))
+
+
 
 def augment(image):
     new_image = image.copy()
@@ -42,6 +67,7 @@ def augment(image):
         return enhancer.enhance(factor=np.random.uniform(low=0.5, high=1.5))
     else:
         raise NotImplementedError("Augmentation Mode Not Available")
+
 
 
 def thresholding(label, thresh_1, thresh_2):
@@ -89,12 +115,14 @@ def thresholding_main(DF, thresh_1=THRESHOLD_1, thresh_2=THRESHOLD_2):
     return DF
 
 
+
 def label_stats(df, description):
     print('\n%s'%description)
     if df.shape[1] > 3:
         print(np.sum(df.iloc[:, 1:5], axis=0))
     else:
         print(np.sum(df.iloc[:, 1], axis=0))
+
 
 
 def augment_main(df_labels, df_embeddings, datapath = "../data/", outpath="../data_augmented/", Pconfirm = 0.8):
@@ -124,6 +152,14 @@ def augment_main(df_labels, df_embeddings, datapath = "../data/", outpath="../da
         # image file
         filename = row.iloc[0]
         filepath = os.path.join(datapath, filename)
+
+        image = Image.open(filepath)
+
+        # perform normalization
+        norm_img = normalize(image)
+        
+        if np.max(np.array(norm_img)-np.array(image)) == 0: raise ValueError("fuck")
+
         
         # labels
         label = row.iloc[1:]
@@ -138,8 +174,7 @@ def augment_main(df_labels, df_embeddings, datapath = "../data/", outpath="../da
 
         if Paug > 0 and np.random.random() <= (Paug * Pconfirm): # if criteria is satisfied
             # read old image
-            image = Image.open(filepath)
-            new_image = augment(image)
+            new_image = augment(norm_img)
 
             # save new image
             new_filename = "aug_"+filename
@@ -158,8 +193,11 @@ def augment_main(df_labels, df_embeddings, datapath = "../data/", outpath="../da
         new_labels.append(label.to_numpy())
         new_embeddings.append(embedding)
 
+        # save original image to new folder
+        norm_img.save(os.path.join(outpath, filename))
+        
         # copy original image regardless of augmenting or not
-        shutil.copyfile(src=filepath, dst=os.path.join(outpath, filename))     
+        #shutil.copyfile(src=filepath, dst=os.path.join(outpath, filename))     
     
 
     print("\ntotal image after augmentation:", i+count+1)
