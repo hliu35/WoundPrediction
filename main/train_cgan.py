@@ -27,7 +27,7 @@ import temporal_encoder as TE
 import temporal_classifier as TC
 
 #from dataloader import WoundImageDataset
-from dataloader import unshift, WoundImagePairsDataset # new dataset with day i and j
+from dataloader import WoundImagePairsDataset # new dataset with day i and j
 from synth_labels import synthesize_softmax_labels as synth_softmax
 from synth_labels import synthesize_onehot_labels as synth_onehot
 
