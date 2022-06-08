@@ -1,12 +1,15 @@
 from multiprocessing.sharedctypes import Value
 import os, sys
 import shutil
+from venv import create
 
 import numpy as np
 import pandas as pd
 from PIL import Image, ImageOps, ImageEnhance
 
 import time
+
+from circular_crop import create_circular_mask
 
 # Set Random Seed
 np.random.seed(10)
@@ -27,26 +30,39 @@ def from_string(embedding_str):
 
 
 def normalize(cropped_img):
-    img = np.array(cropped_img).astype(float)
+    img = np.array(cropped_img).astype(float) / 255.0
     assert(img.shape[2] == 3)
-    mask = np.any(img != [0, 0, 0], axis=-1)
+    #mask = np.any(img != [0, 0, 0], axis=-1)
+    mask = create_circular_mask(h=352, w=352)
+
+    # method 2: normalization with dataset average
+    # these values were calculated only with center region (non-black)
+    mu = [0.55556777, 0.39989071, 0.31845184]
+    sigma = [0.20726847, 0.14849674, 0.12475745]
+    new_min = [-2.75317977, -2.77410285, -2.62560427]
+    new_max = [2.1619653, 4.10233991, 5.54526709]
 
     for c in range(3):
-        center = (img[:, :, c][mask]).copy()
+        
+        # method 1: normalization per image per channel
+        #center = (img[:, :, c][mask]).copy()
+        #mu = np.mean(center)
+        #sigma = np.std(center)
 
-        mu = np.mean(center)
-        sigma = np.std(center)
+        # img[:, :, c][mask] -= mu
+        # img[:, :, c][mask] /= sigma
+        img[:, :, c][mask] -= mu[c]
+        img[:, :, c][mask] /= sigma[c]
 
-        img[:, :, c][mask] -= mu
-        img[:, :, c][mask] /= sigma
 
         #new_min = np.min(img[:, :, c][mask])
         #new_max = np.max(img[:, :, c][mask])
-        new_min = np.percentile(img[:, :, c][mask], q=1.0)
-        new_max = np.percentile(img[:, :, c][mask], q=99)
+        #new_min = np.percentile(img[:, :, c][mask], q=1.0)
+        #new_max = np.percentile(img[:, :, c][mask], q=99)
 
-        img[:, :, c][mask] -= new_min
-        img[:, :, c][mask] /= (new_max-new_min)
+
+        img[:, :, c][mask] -= new_min[c]
+        img[:, :, c][mask] /= (new_max[c]-new_min[c])
         img[:, :, c][mask] *= 255.0
     
     img = np.clip(img, 0, 255)
@@ -163,9 +179,10 @@ def augment_main(df_labels, df_embeddings, datapath = "../data/", outpath="../da
         image = Image.open(filepath)
 
         # perform normalization
-        norm_img = normalize(image)
+        #norm_img = normalize(image)
+        norm_img = image
         
-        if np.max(np.array(norm_img)-np.array(image)) == 0: raise ValueError("fuck")
+        if np.max(np.array(norm_img)-np.array(image)) == 0: raise ValueError("The image didn't change at all!")
 
         
         # labels
