@@ -176,7 +176,6 @@ def list_full_paths(directory, mode="train"):
 
 def train_cgan(datapath, annotation_file, outpath="../tmp/"):
     ''' This is the script to train Conditional GAN a.k.a. DCGAN '''
-
     # Some interesting pages to read while waiting
     #
     # https://www.reddit.com/r/MachineLearning/comments/5asl74/discussion_discriminator_converging_to_0_loss_in/
@@ -187,7 +186,7 @@ def train_cgan(datapath, annotation_file, outpath="../tmp/"):
     C = opt.n_classes
     if C not in [4, 16]: raise NotImplementedError("Check n_classes in arguments")
     
-    # normalization parameters
+    # normalization parameters of Circular Cropped Wound Dataset
     MEAN = torch.tensor([0.56014212, 0.40342121, 0.32133712])
     STD = torch.tensor([0.20345279, 0.14542403, 0.12238597])
 
@@ -231,6 +230,7 @@ def train_cgan(datapath, annotation_file, outpath="../tmp/"):
         p.require_grads = False
     temporal_encoder.eval()
 
+
     # Initialize Temporal Discriminator
     tc_latent_dim = 32
     temporal_discriminator = TD.TemporalDiscriminator(IMG_SHAPE, tc_latent_dim)
@@ -256,17 +256,12 @@ def train_cgan(datapath, annotation_file, outpath="../tmp/"):
 
 
     # Configure data loaders and compose transform functions
+    # https://stackoverflow.com/questions/65676151/how-does-torchvision-transforms-normalize-operates
     TRANSFORMS = T.Compose([T.ToTensor(), \
-        T.Resize((opt.img_size, opt.img_size)), T.Normalize(MEAN, STD)]) # test with normalization
-
+        T.Resize((opt.img_size, opt.img_size))]) # normalization afterwards
 
     train_dataset = WoundImagePairsDataset(train_imgs, annotation_file, transform = TRANSFORMS)
-    #val_dataset = WoundImagePairsDataset(val_imgs, annotation_file, transform = TRANSFORMS)
-    #test_dataset = WoundImagePairsDataset(test_imgs, annotation_file, transform = TRANSFORMS)
-
     train_dataloader = DataLoader(train_dataset, batch_size=opt.batch_size, shuffle=True)
-    #val_dataloader = DataLoader(val_dataset, batch_size=opt.batch_size, shuffle=False)
-    #test_dataloader = DataLoader(test_dataset, batch_size=opt.batch_size, shuffle=False)
 
 
     # Optimizers
@@ -276,11 +271,12 @@ def train_cgan(datapath, annotation_file, outpath="../tmp/"):
 
     # densenet image preparation
     DENSENET_IMAGE_SHAPE = 244
-    transform_densenet = T.Compose([T.Resize(DENSENET_IMAGE_SHAPE) ])#, T.Normalize([0.56014212, 0.40342121, 0.32133712], [0.20345279, 0.14542403, 0.12238597])])
+    transform_densenet = T.Compose([T.Resize(DENSENET_IMAGE_SHAPE) ])
 
 
     batches_done=0
     d_loss, g_loss = 0, 0
+
 
     for epoch in range(opt.epochs):
 
@@ -291,7 +287,6 @@ def train_cgan(datapath, annotation_file, outpath="../tmp/"):
 
             # SKIP BATCH SIZE OF 1
             if imgs_k.shape[0] < B: continue
-
 
             # Sample labels as generator input
             if C == 4:
@@ -305,7 +300,6 @@ def train_cgan(datapath, annotation_file, outpath="../tmp/"):
                 gen_y = Y16.cuda()
                 y_disp = Y16.cuda() # labels for display
             
-
             # sample noise for generating fakes
             noise = Variable(torch.randn((B, opt.latent_dim)).cuda())
 
@@ -317,8 +311,6 @@ def train_cgan(datapath, annotation_file, outpath="../tmp/"):
             imgs_k = Variable(imgs_k.type(torch.FloatTensor).cuda())
             imgs_i = Variable(imgs_i.type(torch.FloatTensor).cuda())
             imgs_j = Variable(imgs_j.type(torch.FloatTensor).cuda())
-            #real_y = torch.zeros(batch_size, n_classes)
-            #real_y = Variable(real_y.scatter_(1, labels.view(batch_size, n_classes), 1).cuda())
 
 
             # -----------------
@@ -328,10 +320,18 @@ def train_cgan(datapath, annotation_file, outpath="../tmp/"):
             optimizer_G.zero_grad()
 
             # Generate a batch of images
-            #gen_imgs = generator(noise, gen_y)
             gen_imgs = generator(noise, gen_y).view(B, *IMG_SHAPE)
 
-            # Loss measures generator's ability to fool the discriminator
+
+            # IMPORTANT: for Discriminators, normalize every image so far, both real and generated
+            norm = T.Normalize(MEAN, STD)
+            imgs_i      =   norm(imgs_i)
+            imgs_j      =   norm(imgs_j)
+            imgs_k      =   norm(imgs_k)
+            gen_imgs    =   norm(gen_imgs)
+
+
+            # Loss measures generator's ability to fool the D_realism
             prediction = discriminator(gen_imgs, gen_y).squeeze()
             g_loss = adversarial_loss(prediction, valid)
 
@@ -347,7 +347,7 @@ def train_cgan(datapath, annotation_file, outpath="../tmp/"):
 
             optimizer_D.zero_grad()
 
-            # REALISM LOSS (Loss R)
+            # ----------------------------------   REALISM LOSS (Loss R)
 
             # Loss for real images
             d_real_loss = adversarial_loss(discriminator(imgs_k, real_y).squeeze(), valid)
@@ -356,7 +356,7 @@ def train_cgan(datapath, annotation_file, outpath="../tmp/"):
             
             
             
-            # EMBEDDING LOSS (Loss yhat|z)
+            # ----------------------------------   EMBEDDING LOSS (Loss yhat|z)
 
             cls_input = gen_imgs.detach()
             cls_input = transform_densenet(cls_input)
@@ -369,7 +369,7 @@ def train_cgan(datapath, annotation_file, outpath="../tmp/"):
             emb_loss = embedding_loss(target, prediction)
 
             
-            # TEMPORAL COHERENCE LOSS (Loss Xpred_k | Xi, Xj)
+            # ----------------------------------   TEMPORAL COHERENCE LOSS (Loss Xpred_k | Xi, Xj)
             Yirk = torch.ones((B,1)) # i and real k
             Yjrk = torch.ones((B,1)) # j and real k
             Yifk = torch.zeros((B,1)) # i and fake k
@@ -386,13 +386,15 @@ def train_cgan(datapath, annotation_file, outpath="../tmp/"):
             t_loss = temporal_loss(temporal_pred, temporal_target)
 
             
-            # TOTAL DISCRIMINATOR LOSS (L)
+            # ----------------------------------   TOTAL DISCRIMINATOR LOSS (L)
 
             #d_loss = (d_real_loss + d_fake_loss)
             d_loss = (d_real_loss + d_fake_loss + emb_loss + t_loss)
 
             
-            # conditional update D
+
+
+            # Finalizing: conditional update D
             #if d_loss >= D_UPDATE_THRESHOLD:
             #if g_loss <= D_UPDATE_THRESHOLD:   # TEST
             d_loss.backward()
@@ -406,22 +408,22 @@ def train_cgan(datapath, annotation_file, outpath="../tmp/"):
 
             batches_done = epoch * len(train_dataloader) + i
             if batches_done % opt.sample_interval == 0:
-                #noise = Variable(torch.FloatTensor(np.random.normal(0, 1, (batch_size, opt.latent_dim))).cuda())
                 noise = Variable(torch.randn((B, opt.latent_dim)).cuda())
 
                 # y_disp was defined at the very beginning of training
-                #print(y_disp)
                 gen_imgs = generator(noise, y_disp).view(-1, *IMG_SHAPE)
 
-                save_image(gen_imgs.data, os.path.join(outpath, '%d-%d.png' % (epoch,batches_done)), nrow=8, normalize=True) # nrow = number of img per row, original C, current C//4
-                #save_image(imgs_k.data, os.path.join(outpath, '%d-%d.png' % (epoch,batches_done)), nrow=C//2, normalize=True) # real data
+                save_image(gen_imgs.data, os.path.join(outpath, '%d-%d.png' % (epoch,batches_done)), nrow=8, normalize=False) # nrow = number of img per row, original C, current C//4
+                #save_image(imgs_k.data, os.path.join(outpath, '%d-%d.png' % (epoch,batches_done)), nrow=C//2, normalize=False) # real data
 
         if (epoch+1) % 10 == 0:
             torch.save(generator, os.path.join(outpath, "cgan_gen.pth"))
 
 
-
     #return {"model":[generator, discriminator], "dataloaders":[train_dataloader, val_dataloader, test_dataloader]}
+
+
+
 
 
 
