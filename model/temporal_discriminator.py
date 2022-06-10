@@ -58,6 +58,7 @@ class SiameseCNN(nn.Module):
 
 
 class Classifier(nn.Module):
+    # takes in CNN encodings, concats, and discriminates
     def __init__(self, latent_dim):
         super(Classifier, self).__init__()
 
@@ -74,9 +75,10 @@ class Classifier(nn.Module):
 
 
 
-class TemporalClassifier(nn.Module):
+class TemporalDiscriminator(nn.Module):
+    # previously known as TemporalClassifier
     def __init__(self, img_shape, latent_dim=32):
-        super(TemporalClassifier, self).__init__()
+        super(TemporalDiscriminator, self).__init__()
         self.latent_dim = latent_dim
 
         self.cnn = SiameseCNN(img_shape, latent_dim)
