@@ -24,7 +24,7 @@ import torch.nn.functional as F
 
 import dcgan
 import temporal_encoder as TE
-import temporal_classifier as TC
+import temporal_discriminator as TD
 
 #from dataloader import WoundImageDataset
 from dataloader import WoundImagePairsDataset # new dataset with day i and j
@@ -188,11 +188,8 @@ def train_cgan(datapath, annotation_file, outpath="../tmp/"):
     if C not in [4, 16]: raise NotImplementedError("Check n_classes in arguments")
     
     # normalization parameters
-    MEAN = torch.tensor([0.5, 0.5, 0.5])
-    STD = torch.tensor([0.5, 0.5, 0.5])
-    #MEAN = torch.tensor([0.441, 0.318, 0.253])
-    #STD = torch.tensor([0.291, 0.209, 0.170])
-
+    MEAN = torch.tensor([0.56014212, 0.40342121, 0.32133712])
+    STD = torch.tensor([0.20345279, 0.14542403, 0.12238597])
 
     # create output folder
     if os.path.exists(outpath):
@@ -227,14 +224,16 @@ def train_cgan(datapath, annotation_file, outpath="../tmp/"):
 
 
     # Initialize Temporal Encoder
-    temporal_encoder = TE.loadClassifier("../model/best_classifier.tar")
+    temporal_encoder = TE.Classifier_Encoder()
+    temporal_encoder.load_state_dict(torch.load("../checkpoints/normalized_classifier.tar"))
+    #temporal_encoder.load_from_state_dict("../checkpoints/normalized_classifier.tar")
     for p in temporal_encoder.parameters():
         p.require_grads = False
     temporal_encoder.eval()
 
     # Initialize Temporal Discriminator
     tc_latent_dim = 32
-    temporal_classifier = TC.TemporalClassifier(IMG_SHAPE, tc_latent_dim)
+    temporal_discriminator = TD.TemporalDiscriminator(IMG_SHAPE, tc_latent_dim)
 
 
     # Initialize weights
@@ -246,7 +245,7 @@ def train_cgan(datapath, annotation_file, outpath="../tmp/"):
     generator = generator.to(DEVICE)
     discriminator = discriminator.to(DEVICE)
     temporal_encoder = temporal_encoder.to(DEVICE)
-    temporal_classifier = temporal_classifier.to(DEVICE)
+    temporal_discriminator = temporal_discriminator.to(DEVICE)
 
     adversarial_loss = adversarial_loss.to(DEVICE)
     embedding_loss = embedding_loss.to(DEVICE)
@@ -277,7 +276,7 @@ def train_cgan(datapath, annotation_file, outpath="../tmp/"):
 
     # densenet image preparation
     DENSENET_IMAGE_SHAPE = 244
-    transform_densenet = T.Compose([T.Resize(DENSENET_IMAGE_SHAPE), T.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])])
+    transform_densenet = T.Compose([T.Resize(DENSENET_IMAGE_SHAPE) ])#, T.Normalize([0.56014212, 0.40342121, 0.32133712], [0.20345279, 0.14542403, 0.12238597])])
 
 
     batches_done=0
@@ -382,7 +381,7 @@ def train_cgan(datapath, annotation_file, outpath="../tmp/"):
             temporal_K = torch.cat((imgs_k, imgs_k, gen_k, gen_k), dim=0)
             temporal_IJ = torch.cat((imgs_i, imgs_j, imgs_i, imgs_j), dim=0)
 
-            temporal_pred = temporal_classifier(temporal_IJ, temporal_K)
+            temporal_pred = temporal_discriminator(temporal_IJ, temporal_K)
 
             t_loss = temporal_loss(temporal_pred, temporal_target)
 
@@ -414,8 +413,8 @@ def train_cgan(datapath, annotation_file, outpath="../tmp/"):
                 #print(y_disp)
                 gen_imgs = generator(noise, y_disp).view(-1, *IMG_SHAPE)
 
-                save_image(gen_imgs.data, os.path.join(outpath, '%d-%d.png' % (epoch,batches_done)), nrow=C//8, normalize=False) # nrow = number of img per row, original C, current C//4
-                #save_image(imgs_k.data, os.path.join(outpath, '%d-%d.png' % (epoch,batches_done)), nrow=C//2, normalize=False) # real data
+                save_image(gen_imgs.data, os.path.join(outpath, '%d-%d.png' % (epoch,batches_done)), nrow=8, normalize=True) # nrow = number of img per row, original C, current C//4
+                #save_image(imgs_k.data, os.path.join(outpath, '%d-%d.png' % (epoch,batches_done)), nrow=C//2, normalize=True) # real data
 
         if (epoch+1) % 10 == 0:
             torch.save(generator, os.path.join(outpath, "cgan_gen.pth"))
