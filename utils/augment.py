@@ -9,7 +9,7 @@ from PIL import Image, ImageOps, ImageEnhance
 
 import time
 
-from circular_crop import create_circular_mask
+#from circular_crop import create_circular_mask
 
 # Set Random Seed
 np.random.seed(10)
@@ -28,7 +28,7 @@ def from_string(embedding_str):
     embedding_arr = np.fromstring(embedding_str[1:-1], dtype=np.float, sep=",")
     return embedding_arr
 
-
+'''
 def normalize(cropped_img):
     img = np.array(cropped_img).astype(float) / 255.0
     assert(img.shape[2] == 3)
@@ -69,7 +69,7 @@ def normalize(cropped_img):
 
     new_img = Image.fromarray(img.astype(np.uint8))    
     return new_img
-
+'''
 
 
 def augment(image):
