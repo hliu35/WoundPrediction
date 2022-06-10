@@ -182,7 +182,7 @@ def augment_main(df_labels, df_embeddings, datapath = "../data/", outpath="../da
         #norm_img = normalize(image)
         norm_img = image
         
-        if np.max(np.array(norm_img)-np.array(image)) == 0: raise ValueError("The image didn't change at all!")
+        #if np.max(np.array(norm_img)-np.array(image)) == 0: raise ValueError("The image didn't change at all!")
 
         
         # labels
@@ -241,7 +241,7 @@ if __name__ == "__main__":
     # original source files
     label_file = "../data/labels.csv"
     #embedding_file = "../data/embeddings.csv"
-    embedding_file = "../data/new_embeddings.csv"
+    embedding_file = "../data/normalized_embeddings.csv"
     
     # load DFs
     DF_labels = pd.read_csv(label_file) # load labels
