@@ -257,7 +257,7 @@ def train_cgan(datapath, annotation_file, outpath="../tmp/"):
 
     # Configure data loaders and compose transform functions
     TRANSFORMS = T.Compose([T.ToTensor(), \
-        T.Resize((opt.img_size, opt.img_size))]) # test with normalization
+        T.Resize((opt.img_size, opt.img_size)), T.Normalize(MEAN, STD)]) # test with normalization
 
 
     train_dataset = WoundImagePairsDataset(train_imgs, annotation_file, transform = TRANSFORMS)
