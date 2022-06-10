@@ -74,8 +74,8 @@ class Generator(nn.Module):
         x = F.leaky_relu(self.bn2(self.deconv1(x)), 0.2)
         
         #https://stackoverflow.com/questions/44525338/use-of-tanh-in-the-output-layer-of-generator-network
-        x = torch.tanh(self.deconv2(x))  # tanh only applies to data in range [-1, 1]
-        #x = torch.sigmoid(self.deconv2(x)) # sigmoid is for data in range [0, 1]
+        #x = torch.tanh(self.deconv2(x))  # tanh only applies to data in range [-1, 1]
+        x = torch.sigmoid(self.deconv2(x)) # sigmoid is for data in range [0, 1]
          
         return x
 
