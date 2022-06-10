@@ -25,6 +25,9 @@ from dataloader import WoundImagePairsDataset # new dataset with day i and j
 
 CUDA = True
 IMG_SHAPE = (3, 128, 128)
+# normalization parameters
+MEAN = torch.tensor([0.56014212, 0.40342121, 0.32133712])
+STD = torch.tensor([0.20345279, 0.14542403, 0.12238597])
 
 
 def test_cgan(datapath, annotation_file, outpath="../test_results/"):
@@ -60,7 +63,7 @@ def test_cgan(datapath, annotation_file, outpath="../test_results/"):
 
 
     # Configure data loaders and compose transform functions
-    TRANSFORMS = T.Compose([T.ToTensor(), T.Resize((128, 128))])
+    TRANSFORMS = T.Compose([T.ToTensor(), T.Resize((128, 128))]) # doesn't need transform here because we won't put them into Discriminators
 
     test_dataset = WoundImagePairsDataset(test_imgs, annotation_file, transform = TRANSFORMS)
     test_dataloader = DataLoader(test_dataset, batch_size=B, shuffle=False)
