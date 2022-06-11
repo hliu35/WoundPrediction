@@ -323,12 +323,12 @@ def train_cgan(datapath, annotation_file, outpath="../tmp/"):
             gen_imgs = generator(noise, gen_y).view(B, *IMG_SHAPE)
 
 
-            # IMPORTANT: for Discriminators, normalize every image so far, both real and generated
-            norm = T.Normalize(MEAN, STD)
-            imgs_i      =   norm(imgs_i)
-            imgs_j      =   norm(imgs_j)
-            imgs_k      =   norm(imgs_k)
-            gen_imgs    =   norm(gen_imgs)
+            # IMPORTANT: for Discriminators, *standardize* every image so far, both real and generated
+            standardize = T.Normalize(MEAN, STD)
+            imgs_i      =   standardize(imgs_i)
+            imgs_j      =   standardize(imgs_j)
+            imgs_k      =   standardize(imgs_k)
+            gen_imgs    =   standardize(gen_imgs)
 
 
             # Loss measures generator's ability to fool the D_realism
