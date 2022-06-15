@@ -7,7 +7,7 @@ def LinearInter(EmbOne, EmbTwo, distEmb, distFin):
     inter = []
     for i, j in zip(EmbOne, EmbTwo):
         diff = j - i
-        diff = diff/distEmb * 0.5
+        diff = diff/distEmb
         inter.append(j + diff * distFin)
     return inter
 
