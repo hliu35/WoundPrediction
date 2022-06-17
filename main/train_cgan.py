@@ -51,7 +51,7 @@ opt = parser.parse_args()
 
 IMG_SHAPE = (opt.channels, opt.img_size, opt.img_size)
 DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
-CLIP = 0.5
+CLIP = 0.25
 D_UPDATE_THRESHOLD = 8.0
 
 
@@ -114,62 +114,6 @@ def list_full_paths(directory, mode="train"):
 
     return res
 
-    # Ids = []
-    # for i in range(16):
-    #     temp = full_list[i].split("/")[-1]
-    #     if("aug" in temp):
-    #         Ids.append(temp.split("_")[2])
-    #     else:
-    #         Ids.append(temp.split("_")[1])
-
-    # seperated_Ids = []
-    # final_aug_list = []
-    # for id in Ids:
-    #     id_list = []
-    #     aug_Ids = []
-    #     for png in full_list:
-    #         if id in png:
-    #             if "aug_Day" in png:
-    #                 aug_Ids.append(png)
-    #             else:
-    #                 id_list.append(png)
-
-    #     id_list.sort()
-    #     for i in range(6):
-    #         id_list.append(id_list.pop(1))
-    #     seperated_Ids.append(id_list)
-    #     final_aug_list.append(aug_Ids)
-
-    # combs = []
-    # for i in range(16):
-    #     combs.append([list(comb) for comb in combinations(seperated_Ids[i], 3)])
-    # for i in range(len(final_aug_list)):
-    #     aug = final_aug_list[i]
-    #     comb = combs[i]
-    #     for k in aug:
-    #         day = k.split(" ")[1]
-    #         for c in comb:
-    #             for j in range(3):
-    #                 if day == c[j].split(" ")[1] and not "aug_Day" in c[j]:
-    #                     temp = c
-    #                     temp[j] = k
-    #                     comb.append(temp)
-    #     combs[i] = comb
-
-    # combsList = [item for sublist in combs for item in sublist]
-    # r = len(combsList)
-    # while i < r:
-    #     temp = combsList[i][0].split(" ")[1]
-    #     temp = temp.split("_")[0]
-    #     #Change the value below to change which I values to not use
-    #     if int(temp) > 7:
-    #         combsList.pop(i)
-    #         i = i - 1
-    #         r = r - 1
-    #     i = i + 1
-    # #random.shuffle(combsList)
-    # return combsList
-
 
 
 
@@ -211,8 +155,8 @@ def train_cgan(datapath, annotation_file, outpath="../tmp/"):
         embedding_loss = torch.nn.MSELoss() # embedding loss with MSE
         #embedding_loss = torch.nn.CosineEmbeddingLoss() # embedding loss with CEL https://pytorch.org/docs/stable/generated/torch.nn.CosineEmbeddingLoss.html
     else:
-        # if it's 4 (stages), then it must be binary cross entropy
-        embedding_loss = torch.nn.BCELoss()
+        # if it's 4 (stages), then it must be *cross entropy*
+        embedding_loss = torch.nn.CrossEntropyLoss()
     
     temporal_loss = torch.nn.BCELoss()
 
@@ -337,7 +281,7 @@ def train_cgan(datapath, annotation_file, outpath="../tmp/"):
 
 
             g_loss.backward()
-            #torch.nn.utils.clip_grad_norm_(generator.parameters(), CLIP) # notice the trailing _ representing in-place
+            torch.nn.utils.clip_grad_norm_(generator.parameters(), CLIP) # notice the trailing _ representing in-place
             optimizer_G.step()
 
 
@@ -364,7 +308,8 @@ def train_cgan(datapath, annotation_file, outpath="../tmp/"):
             target = gen_y
 
             label_pred, fake_embeddings = temporal_encoder(cls_input)         # NOT SURE IF DETACHING AGAIN IS CORRECT FOR LOSS COMPUTATION
-            prediction = F.softmax(label_pred) if C == 4 else fake_embeddings # label_pred has not been softmaxed yet
+            #prediction = F.softmax(label_pred, dim=-1) if C == 4 else fake_embeddings # label_pred has not been softmaxed yet
+            prediction = label_pred if C == 4 else fake_embeddings             # CrossEntropy requires un-normalized data
 
             emb_loss = embedding_loss(target, prediction)
 
@@ -388,8 +333,8 @@ def train_cgan(datapath, annotation_file, outpath="../tmp/"):
             
             # ----------------------------------   TOTAL DISCRIMINATOR LOSS (L)
 
-            #d_loss = (d_real_loss + d_fake_loss)
-            d_loss = (d_real_loss + d_fake_loss + emb_loss + t_loss)
+            #d_loss = (d_real_loss + d_fake_loss + emb_loss)  # 2 LOSSES ONLY
+            d_loss = (d_real_loss + d_fake_loss + emb_loss + t_loss) # ALL 3 LOSSES
 
             
 
@@ -398,7 +343,7 @@ def train_cgan(datapath, annotation_file, outpath="../tmp/"):
             #if d_loss >= D_UPDATE_THRESHOLD:
             #if g_loss <= D_UPDATE_THRESHOLD:   # TEST
             d_loss.backward()
-            #torch.nn.utils.clip_grad_norm_(discriminator.parameters(), CLIP) # notice the trailing _ representing in-place
+            torch.nn.utils.clip_grad_norm_(discriminator.parameters(), CLIP) # notice the trailing _ representing in-place
             optimizer_D.step()
 
             
