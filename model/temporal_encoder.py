@@ -106,7 +106,7 @@ class Classifier_Encoder(nn.Module):
         # adding an alternative layer for AB test
         self.direct_classifier = nn.Linear(16, num_classes)
 
-        self.softmax = nn.Softmax()
+        self.softmax = nn.Softmax(dim=-1)
 
     def forward(self, x):
         u1 = self.embed_model(x)
@@ -114,7 +114,7 @@ class Classifier_Encoder(nn.Module):
         # u1 = torch.relu(self.dense(u1))
         # u1 = self.classifier(u1)
         u1 = self.direct_classifier(u1)
-        u1 = self.softmax(u1)  # I'm uncommenting this
+        u1 = self.softmax(u1)
         return u1, embeddings
 
     # def load_weights(self, weight_dict):
