@@ -53,7 +53,7 @@ for embed in embeddings:
   temp.insert(0,day)
   values.append(temp)
 
-MouseID = 'Y8-4-L'
+MouseID = 'A8-5-R'
 temp = GenPairs(values, MouseID)
 
 

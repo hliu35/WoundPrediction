@@ -22,36 +22,33 @@ transform = transforms.Compose([
             transforms.Normalize([0.56014212, 0.40342121, 0.32133712], [0.20345279, 0.14542403, 0.12238597])])
 
 labels = []
-wait = 0 + 55 + 55 + 55 + 55 + 55 + 55 + 55 + 55 + 55 + 55
+finLab = []
+wait = 0
 count = 0
 imgPaths = []
 for imgPath in os.listdir('images'):
-    if(count < wait):
-        count += 1
-        continue
-    if(len(imgPaths) == 55):
-        break
     imgPaths.append(imgPath)
+
+imgPaths.sort()
 for imgPath in imgPaths:
     with open('images/' + imgPath, 'rb') as f:
         img = Image.open('images/' + imgPath)
         img.convert('RGB')
     img_tensor = transform(img)
-    img_tensor = torch.stack([img_tensor])
-    labelpred, _ = Classifier(img_tensor.to(device))
-    labels.append(F.softmax(labelpred))
+    img_tensor = torch.stack([img_tensor]).to(device)
+    labelpred, _ = Classifier(img_tensor)
+    labels.append(np.array2string(F.softmax(labelpred).cpu().detach().numpy(), separator=', '))
+    finLab.append(np.array2string((torch.argmax(labelpred) + 1).cpu().detach().numpy(), separator=', '))
+    del labelpred, img_tensor
+    torch.cuda.empty_cache()
 
 with open('dist.csv', mode = 'w', newline="") as f:
     writer = csv.writer(f)
     for lab in labels:
-        #lab = torch.argmax(lab) + 1
-        temp = np.array2string(lab.cpu().detach().numpy(), separator=', ')
-        writer.writerow([temp])
+        writer.writerow([lab])
 with open('labels.csv', mode = 'w', newline="") as f:
     writer = csv.writer(f)
-    for lab in labels:
-        lab = torch.argmax(lab) + 1
-        temp = np.array2string(lab.cpu().detach().numpy(), separator=', ')
-        writer.writerow([temp])
+    for lab in finLab:
+        writer.writerow([lab])
 
 print(len(labels))
